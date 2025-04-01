@@ -907,22 +907,38 @@ class MainWindow(QMainWindow):
                     <!-- Origin marker (0,0) -->
                     <div class="marker origin-marker">0</div>
                     
+                    # <!-- X-Axis Markers -->
+                    # <div class="marker x-marker" style="left: 50px;">50</div>
+                    # <div class="marker x-marker" style="left: 100px;">100</div>
+                    # <div class="marker x-marker" style="left: 150px;">150</div>
+                    # <div class="marker x-marker" style="left: 200px;">200</div>
+                    # <div class="marker x-marker" style="left: 250px;">250</div>
+                    # <div class="marker x-marker" style="left: 300px;">300</div>
+
+                    # <!-- Y-Axis Markers -->
+                    # <div class="marker y-marker" style="top: 50px;">300</div>
+                    # <div class="marker y-marker" style="top: 100px;">250</div>
+                    # <div class="marker y-marker" style="top: 150px;">200</div>
+                    # <div class="marker y-marker" style="top: 200px;">150</div>
+                    # <div class="marker y-marker" style="top: 250px;">100</div>
+                    # <div class="marker y-marker" style="top: 300px;">50</div>
+
                     <!-- X-Axis Markers -->
-                    <div class="marker x-marker" style="left: 50px;">50</div>
-                    <div class="marker x-marker" style="left: 100px;">100</div>
-                    <div class="marker x-marker" style="left: 150px;">150</div>
-                    <div class="marker x-marker" style="left: 200px;">200</div>
-                    <div class="marker x-marker" style="left: 250px;">250</div>
-                    <div class="marker x-marker" style="left: 300px;">300</div>
+                    <div class="marker x-marker" style="left: 50px;">300</div>
+                    <div class="marker x-marker" style="left: 100px;">600</div>
+                    <div class="marker x-marker" style="left: 150px;">900</div>
+                    <div class="marker x-marker" style="left: 200px;">1200</div>
+                    <div class="marker x-marker" style="left: 250px;">1500</div>
+                    <div class="marker x-marker" style="left: 300px;">1800</div>
 
                     <!-- Y-Axis Markers -->
-                    <div class="marker y-marker" style="top: 50px;">300</div>
-                    <div class="marker y-marker" style="top: 100px;">250</div>
-                    <div class="marker y-marker" style="top: 150px;">200</div>
-                    <div class="marker y-marker" style="top: 200px;">150</div>
-                    <div class="marker y-marker" style="top: 250px;">100</div>
-                    <div class="marker y-marker" style="top: 300px;">50</div>
-
+                    <div class="marker y-marker" style="top: 50px;">1800</div>
+                    <div class="marker y-marker" style="top: 100px;">1500</div>
+                    <div class="marker y-marker" style="top: 150px;">1200</div>
+                    <div class="marker y-marker" style="top: 200px;">900</div>
+                    <div class="marker y-marker" style="top: 250px;">600</div>
+                    <div class="marker y-marker" style="top: 300px;">300</div>
+                    
                     <div id="plane1" class="draggable" draggable="true" ondragstart="dragStart(event)">
                     <svg viewBox="0 0 24 24" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
                         <path d="M21,16V14L13,9V3.5A1.5,1.5,0,0,0,11.5,2A1.5,1.5,0,0,0,10,3.5V9L2,14V16L10,13.5V19L8,20.5V22L11.5,21L15,22V20.5L13,19V13.5Z" fill="#007BFF"/>
@@ -1100,7 +1116,8 @@ class MainWindow(QMainWindow):
                 x = float(pos['x'].replace('px', ''))
                 y = float(pos['y'].replace('px', ''))
                 s = float(pos['size'].replace('px', ''))
-                return (x/scaling, y/scaling, s/scaling)
+                # return (x/scaling, y/scaling, s/scaling)
+                return ( 6*(x)+48 , 6*(350-y) - 48, s/.3)
             except (ValueError, KeyError):
                 print('Error')
                 return (0, 0, 0)
