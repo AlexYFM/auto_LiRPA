@@ -91,7 +91,7 @@ if __name__ == "__main__":
     T = 20
     Tv = 1
     ts = 0.01
-    N = 1
+    N = 200
     models = [torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth") for net in range(5)]
     scenario.config.print_level = 0
     scenario.add_agent(car)
@@ -102,8 +102,9 @@ if __name__ == "__main__":
 
     for i in range(N):
         scenario.set_init(
-            [[[0, -1000, np.pi/3, 100], [100, -1000, np.pi/3, 100]], 
-             [[-2000, 0, 0, 100], [-2000, 0, 0, 100]],
+            [[[-100, -1100, np.pi/3, 100], [100, -900, np.pi/3, 100]], 
+            # [[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]], 
+             [[-2000, 100, 0, 100], [-2000, 100, 0, 100]],
              [[2000, 0, np.pi, 100], [2000, 0, np.pi, 100]]
              ],
             [(AgentMode.COC, TrackMode.T1), (AgentMode.COC, TrackMode.T1), (AgentMode.COC, TrackMode.T1)]
@@ -151,7 +152,7 @@ if __name__ == "__main__":
         traces.append(trace)
     # for node in trace.nodes:
     #     print(f'Start time: {node.start_time}, Mode: ', node.mode['car1'][0])
-    print(f'Total runtime: {time.perf_counter()-start} for {N} simulation(s)')
+    print(f'Total runtime: {time.perf_counter()-start} s for {N} simulation(s)')
     fig = go.Figure()
     for trace in traces:
         fig = simulation_tree(trace, None, fig, 1, 2, [1, 2], "fill", "trace")
