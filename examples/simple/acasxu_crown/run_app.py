@@ -1096,6 +1096,7 @@ class MainWindow(QMainWindow):
                 queue.append(new_node)
 
         trace.nodes = trace._get_all_nodes(trace.root)
+        print(f'Verification time: {time.perf_counter()-start}')
 
     def run_button_clicked(self):
         self.web_view.page().runJavaScript("getPlanePositions();", self.handle_positions)

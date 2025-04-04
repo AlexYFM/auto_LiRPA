@@ -1007,6 +1007,8 @@ class MainWindow(QMainWindow):
         car = CarAgent('car1', file_name=input_code_name)
         car2 = NPCAgent('car2')
         car3 = NPCAgent('car3')
+        # grid_bounds = [-2400, 300, -1100, 600, 0, 1100]
+        self.plotter.show_grid()
         scenario = Scenario(ScenarioConfig(parallel=False))
         car.set_initial(
             initial_state=[[-1, -1001, -1, np.pi/3, np.pi/6, 100], [1, -999, 1, np.pi/3, np.pi/6, 100]],
@@ -1113,6 +1115,9 @@ class MainWindow(QMainWindow):
                 queue.append(new_node)
 
         trace.nodes = trace._get_all_nodes(trace.root)
+        print(f'Verification time: {time.perf_counter()-start}')
+        self.plotter.render()
+
 
     def run_button_clicked(self):
         self.web_view.page().runJavaScript("getPlanePositions();", self.handle_positions)
