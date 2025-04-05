@@ -1014,17 +1014,17 @@ class MainWindow(QMainWindow):
             initial_state=[[-1, -1001, -1, np.pi/3, np.pi/6, 100], [1, -999, 1, np.pi/3, np.pi/6, 100]],
             # initial_state=[[-0.1, -1000.1, 0.1, np.pi/3, np.pi/6, 100], [0.1, -999.9, 0.1, np.pi/3, np.pi/6, 100]],
             # initial_state=[[0, -1000, 0, np.pi/3, np.pi/6, 100], [0, -1000, 0, np.pi/3, np.pi/6, 100]],
-            initial_mode=(AgentMode.COC, TrackMode.T1)
+            initial_mode=(AgentMode.COC,   )
         )
         car2.set_initial(
             # initial_state=[[-2000.1, 99.9, 999.9, 0,0, 100], [-1999.9, 100.1, 1000.1, 0,0, 100]],
             initial_state=[[-2001, 99, 999, 0,0, 100], [-1999, 101, 1001, 0,0, 100]],
-            initial_mode=(AgentMode.COC, TrackMode.T1)
+            initial_mode=(AgentMode.COC,   )
         )
         car3.set_initial(
             # initial_state=[[1999.9, -0.1, 999.9, np.pi,0, 100], [2000.1, 0.1, 1000.1, np.pi,0, 100]],
             initial_state=[[1999, -1, 999, np.pi,0, 100], [2001, 1, 1001, np.pi,0, 100]],
-            initial_mode=(AgentMode.COC, TrackMode.T1)
+            initial_mode=(AgentMode.COC,   )
         )
         T = 20
         Tv = 1
@@ -1100,7 +1100,7 @@ class MainWindow(QMainWindow):
                     [int_states[0][0][1:], int_states[0][1][1:]],
                     [int_states[1][0][1:], int_states[1][1][1:]]
                     ], # this should eventually be a range 
-                    [(AgentMode(new_m), TrackMode.T1),(AgentMode.COC, TrackMode.T1),(AgentMode.COC, TrackMode.T1)]
+                    [(AgentMode(new_m),   ),(AgentMode.COC,   ),(AgentMode.COC,   )]
                 )
                 id += 1
                 # new_trace = scenario.simulate(Tv, ts)

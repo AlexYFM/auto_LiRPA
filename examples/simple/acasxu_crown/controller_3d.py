@@ -19,16 +19,6 @@ class AgentMode(Enum):
     SR = auto()
 
 
-class TrackMode(Enum):
-    T0 = auto()
-    T1 = auto()
-    T2 = auto()
-    M01 = auto()
-    M12 = auto()
-    M21 = auto()
-    M10 = auto()
-
-
 class State:
     x: float
     y: float
@@ -37,9 +27,8 @@ class State:
     psi: float
     v: float
     agent_mode: AgentMode
-    track_mode: TrackMode
 
-    def __init__(self, x, y, z, theta, psi, v, agent_mode: AgentMode, track_mode: TrackMode):
+    def __init__(self, x, y, z, theta, psi, v, agent_mode: AgentMode):
         pass
 
 

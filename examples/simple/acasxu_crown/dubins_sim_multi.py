@@ -76,22 +76,22 @@ if __name__ == "__main__":
     #     # initial_state=[[0, -0.5, 0, 1.0], [0.01, 0.5, 0, 1.0]],
     #     # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
     #     initial_state=[[-100, -1100, np.pi/3, 100], [100, -900, np.pi/3, 100]],
-    #     initial_mode=(AgentMode.COC, TrackMode.T1)
+    #     initial_mode=(AgentMode.COC,  )
     # )
     # car2.set_initial(
     #     # initial_state=[[15, 15, 0, 0.5], [15, 15, 0, 0.5]],
     #     initial_state=[[-2000, 0, 0, 100], [-2000, 0, 0, 100]],
-    #     initial_mode=(AgentMode.COC, TrackMode.T1)
+    #     initial_mode=(AgentMode.COC,  )
     # )
     # car3.set_initial(
     #     # initial_state=[[15, 15, 0, 0.5], [15, 15, 0, 0.5]],
     #     initial_state=[[-2000, 0, 0, 100], [-2000, 0, 0, 100]],
-    #     initial_mode=(AgentMode.COC, TrackMode.T1)
+    #     initial_mode=(AgentMode.COC,  )
     # )
     T = 20
     Tv = 1
     ts = 0.01
-    N = 200
+    N = 1
     models = [torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth") for net in range(5)]
     scenario.config.print_level = 0
     scenario.add_agent(car)
@@ -107,7 +107,7 @@ if __name__ == "__main__":
              [[-2000, 100, 0, 100], [-2000, 100, 0, 100]],
              [[2000, 0, np.pi, 100], [2000, 0, np.pi, 100]]
              ],
-            [(AgentMode.COC, TrackMode.T1), (AgentMode.COC, TrackMode.T1), (AgentMode.COC, TrackMode.T1)]
+            [(AgentMode.COC,  ), (AgentMode.COC,  ), (AgentMode.COC,  )]
         )
         trace = scenario.simulate(Tv, ts) # this is the root
         id = 1+trace.root.id
@@ -137,7 +137,7 @@ if __name__ == "__main__":
                 [[own_state[1:], own_state[1:]], [int_states[0][1:], int_states[0][1:]],
                  [int_states[1][1:], int_states[1][1:]]
                  ], # this should eventually be a range 
-                [(AgentMode(new_mode), TrackMode.T1),(AgentMode.COC, TrackMode.T1), (AgentMode.COC, TrackMode.T1)]
+                [(AgentMode(new_mode),  ),(AgentMode.COC,  ), (AgentMode.COC,  )]
             )
             id += 1
             new_trace = scenario.simulate(Tv, ts)

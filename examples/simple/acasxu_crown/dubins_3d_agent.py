@@ -40,7 +40,6 @@ class NPCAgent(BaseAgent):
         current state using a Stanley controller-like rule"""
         x, y, z, theta, psi, v = state
         vehicle_mode = mode[0]
-        vehicle_lane = mode[1]
         vehicle_pos = np.array([x, y])
         # d = -lane_map.get_lateral_distance(vehicle_lane, vehicle_pos)
         # psi = lane_map.get_lane_heading(vehicle_lane, vehicle_pos) - theta
@@ -103,7 +102,7 @@ class CarAgent(BaseAgent):
 
     def action_handler(self, mode: List[str], state, lane_map: LaneMap) -> Tuple[float, float]:
         x, y, z, theta, psi, v = state
-        vehicle_mode, vehicle_lane = mode
+        vehicle_mode = mode[0]
         vehicle_pos = np.array([x, y])
         a = 0
         p = 0

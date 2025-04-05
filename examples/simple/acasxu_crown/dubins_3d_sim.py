@@ -193,18 +193,18 @@ if __name__ == "__main__":
         initial_state=[[-1, -1010, -1, np.pi/3, np.pi/6, 100], [1, -990, 1, np.pi/3, np.pi/6, 100]],
         # initial_state=[[0, -1001, np.pi/3, 100], [0, -999, np.pi/3, 100]],
         # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
-        initial_mode=(AgentMode.COC, TrackMode.T1)
+        initial_mode=(AgentMode.COC,  )
     )
     car2.set_initial(
         # initial_state=[[15, 15, 0, 0.5], [15, 15, 0, 0.5]],
         # initial_state=[[-2000, 0, 1000, 0,0, 100], [-2000, 0, 1000, 0,0, 100]],
         initial_state=[[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]],
-        initial_mode=(AgentMode.COC, TrackMode.T1)
+        initial_mode=(AgentMode.COC,  )
     )
-    T = 50
+    T = 20
     Tv = 1
     ts = 0.01
-    N = 100
+    N = 1
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
 
     scenario.config.print_level = 0
@@ -227,7 +227,7 @@ if __name__ == "__main__":
         scenario.set_init(
             [[[-100, -1000, -1, np.pi/3, np.pi/6, 100], [100, -900, 1, np.pi/3, np.pi/6, 100]],
               [[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]]],
-            [(AgentMode.COC, TrackMode.T1), (AgentMode.COC, TrackMode.T1)]
+            [(AgentMode.COC,  ), (AgentMode.COC,  )]
         )
         trace = scenario.simulate(Tv, ts) # this is the root
         id = 1+trace.root.id
@@ -248,7 +248,7 @@ if __name__ == "__main__":
             new_mode = np.argmin(ads[0])+1 # will eventually be a list
             scenario.set_init(
                 [[own_state[1:], own_state[1:]], [int_state[1:], int_state[1:]]], # this should eventually be a range 
-                [(AgentMode(new_mode), TrackMode.T1),(AgentMode.COC, TrackMode.T1)]
+                [(AgentMode(new_mode),  ),(AgentMode.COC,  )]
             )
             id += 1
             new_trace = scenario.simulate(Tv, ts)

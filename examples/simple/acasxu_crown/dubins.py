@@ -24,15 +24,6 @@ class AgentMode(Enum):
     SL = auto()
     SR = auto()
 
-class TrackMode(Enum):
-    T0 = auto()
-    T1 = auto()
-    T2 = auto()
-    M01 = auto()
-    M12 = auto()
-    M21 = auto()
-    M10 = auto()
-
 means_for_scaling = torch.FloatTensor([19791.091, 0.0, 0.0, 650.0, 600.0])
 range_for_scaling = torch.FloatTensor([60261.0, 6.28318530718, 6.28318530718, 1100.0, 1200.0])
 # class Model(nn.Module):
@@ -192,11 +183,11 @@ if __name__ == "__main__":
         # initial_state=[[0, -1010, np.pi/3, 100], [0, -990, np.pi/3, 100]],
         # initial_state=[[0, -1001, np.pi/3, 100], [0, -999, np.pi/3, 100]],
         initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
-        initial_mode=(AgentMode.COC, TrackMode.T1)
+        initial_mode=(AgentMode.COC,  )
     )
     car2.set_initial(
         initial_state=[[-2000, 0, 0, 100], [-2000, 0, 0, 100]],
-        initial_mode=(AgentMode.COC, TrackMode.T1)
+        initial_mode=(AgentMode.COC,  )
     )
     T = 30
     Tv = 1
@@ -255,7 +246,7 @@ if __name__ == "__main__":
         for new_m in modes:
             scenario.set_init(
                 [[own_state[0][1:], own_state[1][1:]], [int_state[0][1:], int_state[0][1:]]], # this should eventually be a range 
-                [(AgentMode(new_m), TrackMode.T1),(AgentMode.COC, TrackMode.T1)]
+                [(AgentMode(new_m), ),(AgentMode.COC, )]
             )
             id += 1
             # new_trace = scenario.simulate(Tv, ts)

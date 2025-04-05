@@ -193,17 +193,17 @@ if __name__ == "__main__":
         initial_state=[[0, -1010, np.pi/3, 100], [0, -990, np.pi/3, 100]],
         # initial_state=[[0, -1001, np.pi/3, 100], [0, -999, np.pi/3, 100]],
         # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
-        initial_mode=(AgentMode.COC, TrackMode.T1)
+        initial_mode=(AgentMode.COC,  )
     )
     car2.set_initial(
         initial_state=[[-2000, 100, 0, 100], [-2000, 100, 0, 100]],
-        initial_mode=(AgentMode.COC, TrackMode.T1)
+        initial_mode=(AgentMode.COC,  )
     )
     car3.set_initial(
         initial_state=[[2000, 0, np.pi, 100], [2000, 0, np.pi, 100]],
-        initial_mode=(AgentMode.COC, TrackMode.T1)
+        initial_mode=(AgentMode.COC,  )
     )
-    T = 25
+    T = 10
     Tv = 1
     ts = 0.01
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
@@ -273,7 +273,7 @@ if __name__ == "__main__":
             scenario.set_init(
                 [[own_state[0][1:], own_state[1][1:]], [int_states[0][0][1:], int_states[0][1][1:]],
                  [int_states[1][0][1:], int_states[1][1][1:]]], # this should eventually be a range 
-                [(AgentMode(new_m), TrackMode.T1),(AgentMode.COC, TrackMode.T1),(AgentMode.COC, TrackMode.T1)]
+                [(AgentMode(new_m),  ),(AgentMode.COC,  ),(AgentMode.COC,  )]
             )
             id += 1
             # new_trace = scenario.simulate(Tv, ts)
