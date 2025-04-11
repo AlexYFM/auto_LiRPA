@@ -1005,32 +1005,32 @@ class MainWindow(QMainWindow):
         script_dir = os.path.realpath(os.path.dirname(__file__))
         input_code_name = os.path.join(script_dir, "controller_3d.py")
         car = CarAgent('car1', file_name=input_code_name)
-        car2 = NPCAgent('car2')
+        car2 = CarAgent('car2', file_name=input_code_name)
         scenario = Scenario(ScenarioConfig(parallel=False))
+        # [[[-100, -100, np.pi, 100], [100, 100, np.pi, 100]], [[-4000, 0, 0, 100], [-4000, 0, 0, 100]]]
         car.set_initial(
-            # initial_state=[[x1 - r1, y1 - r1, -1, np.pi/3, np.pi/6, 100], [x1 + r1, y1 + r1, 1, np.pi/3, np.pi/6, 100]],
-            initial_state=[[-1, -1010, -1, np.pi/3, np.pi/6, 100], [1, -990, 1, np.pi/3, np.pi/6, 100]],
+            # initial_state=[[-1, -1010, -1, np.pi/3, np.pi/6, 100], [1, -990, 1, np.pi/3, np.pi/6, 100]],
             # initial_state=[[0, -1000, 0, np.pi/3, np.pi/6, 100], [0, -1000, 0, np.pi/3, np.pi/6, 100]],
-            # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
-            initial_mode=(AgentMode.COC,   )
+            initial_state=[[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]],
+            initial_mode=(AgentMode.COC, )
         )
         car2.set_initial(
-            initial_state=[[-2001, -10, 999, 0,0, 100], [-1999, 10, 1001, 0,0, 100]],
             # initial_state=[[-2000, 0, 1000, 0,0, 100], [-2000, 0, 1000, 0,0, 100]],
-            # initial_state=[[x2 - r2,  y2 - r2, 1000,0,0, 100], [x2 + r2, y2 + r2, 1001, 0,0, 100]],
-            initial_mode=(AgentMode.COC,   )
+            # initial_state=[[-2001, -10, 999, 0,0, 100], [-1999, 10, 1001, 0,0, 100]],
+            initial_state=[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]],
+            initial_mode=(AgentMode.COC, )
         )
         T = 20
         Tv = 1
-        ts = 0.01
+        ts = 0.1
         # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
 
         scenario.config.print_level = 0
         scenario.config.reachability_method = ReachabilityMethod.DRYVR_DISC
-        self.plotter.show_grid()
         scenario.add_agent(car)
         scenario.add_agent(car2)
         start = time.perf_counter()
+        self.plotter.show_grid()
         trace = scenario.verify(Tv, ts, self.plotter) # this is the root
         id = 1+trace.root.id
         models = [[torch.load(f"./examples/simple/acasxu_crown/nets/ACASXU_run2a_{net + 1}_{tau + 1}_batch_2000.pth") for tau in range(9)] for net in range(5)]
@@ -1042,9 +1042,10 @@ class MainWindow(QMainWindow):
         while len(queue):
             cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
             own_state, int_state = get_final_states_verify(cur_node)
-            print(own_state, int_state)
             tau_idx_min, tau_idx_max = get_tau_idx(own_state[1], int_state[0]), get_tau_idx(own_state[0], int_state[1]) 
             # print(tau_idx_min, tau_idx_max)
+            
+            ### make below a function when I have time, will eventually need to do pairwise comparisons between all agents 
             modes = set()
             reachsets = get_acas_reach(np.array(own_state)[:,1:], np.array(int_state)[:,1:])
             # print(reachsets)
@@ -1063,7 +1064,6 @@ class MainWindow(QMainWindow):
                     ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
                     bounded_x = BoundedTensor(x, ptb=ptb_x)
                     lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
-                    # lb, ub = lirpa_model.compute_bounds(bounded_x, method='backward') # 
 
                     # new_mode = np.argmax(ub.numpy())+1 # will eventually be a list/need to check upper and lower bounds
                     new_mode = np.argmin(lb.numpy())+1 # will eventually be a list/need to check upper and lower bounds
@@ -1078,23 +1078,58 @@ class MainWindow(QMainWindow):
                             new_modes.append(i+1)
                     modes.update(new_modes)
             
-            # print(modes, cur_node.start_time) # at 15 s, all modes possible -- investigate why
-            for new_m in modes:
-                scenario.set_init(
-                    [[own_state[0][1:], own_state[1][1:]], [int_state[0][1:], int_state[1][1:]]], # this should eventually be a range 
-                    [(AgentMode(new_m),   ),(AgentMode.COC,   )]
-                )
-                id += 1
-                # new_trace = scenario.simulate(Tv, ts)
-                new_trace = scenario.verify(Tv, ts, self.plotter)
-                temp_root = new_trace.root
-                new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, id)
-                cur_node.child.append(new_node)
-                print(f'Start time: {new_node.start_time}\nNode ID: {id}\nNew mode: {AgentMode(new_m)}')
+            int_modes = set()
+            int_reachsets = get_acas_reach(np.array(int_state)[:,1:], np.array(own_state)[:,1:])
+            tau_idx_min_int, tau_idx_max_int = get_tau_idx(int_state[1], own_state[0]), get_tau_idx(int_state[0], own_state[1]) 
+            # print(reachsets)
+            for reachset in int_reachsets:
+                if len(int_modes)==5: # if all modes are possible, stop iterating
+                    break 
+                acas_min, acas_max = reachset
+                acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
+                x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
+                x = (x_l+x_u)/2
+
+                last_cmd = getattr(AgentMode, cur_node.mode['car2'][0]).value  # cur_mode.mode[.] is some string 
+                for tau_idx in range(tau_idx_min, tau_idx_max+1):
+                    lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
+                    # lirpa_model = BoundedModule(model, (torch.empty_like(x))) 
+                    ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
+                    bounded_x = BoundedTensor(x, ptb=ptb_x)
+                    lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
+
+                    # new_mode = np.argmax(ub.numpy())+1 # will eventually be a list/need to check upper and lower bounds
+                    new_mode = np.argmin(lb.numpy())+1 # will eventually be a list/need to check upper and lower bounds
                     
-                if new_node.start_time + Tv>=T: # if the time of the current simulation + start_time is at or above total time, don't add
-                    continue
-                queue.append(new_node)
+                    new_modes = []
+                    for i in range(len(ub.numpy()[0])):
+                        # upper = ub.numpy()[0][i]
+                        # if upper>=lb.numpy()[0][new_mode-1]:
+                        #     new_modes.append(i+1)
+                        lower = lb.numpy()[0][i]
+                        if lower<=ub.numpy()[0][new_mode-1]:
+                            new_modes.append(i+1)
+                    int_modes.update(new_modes)
+            # print(modes, cur_node.start_time) # at 15 s, all modes possible -- investigate why
+            
+            # iterate over all elements in the cross product of modes and int_modes instead in the future instead of this double loop
+            for new_int_m in int_modes: 
+                for new_m in modes:
+                    scenario.set_init(
+                        [[own_state[0][1:], own_state[1][1:]], [int_state[0][1:], int_state[1][1:]]], # this should eventually be a range 
+                        [(AgentMode(new_m), ),(AgentMode(new_int_m), )]
+                    )
+                    id += 1
+                    # new_trace = scenario.simulate(Tv, ts)
+                    new_trace = scenario.verify(Tv, ts, self.plotter)
+                    temp_root = new_trace.root
+                    new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, id)
+                    cur_node.child.append(new_node)
+                    print(f'Start time: {new_node.start_time}\nNode ID: {id}\nNew modes: {(AgentMode(new_m), AgentMode(new_int_m))}')
+                        
+                    if new_node.start_time + Tv>=T: # if the time of the current simulation + start_time is at or above total time, don't add
+                        continue
+                    queue.append(new_node)
 
         trace.nodes = trace._get_all_nodes(trace.root)
         print(f'Verification time: {time.perf_counter()-start}')

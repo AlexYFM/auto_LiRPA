@@ -36,6 +36,8 @@ from PyQt6.QtWidgets import QStyleOptionSlider
 from PyQt6.QtCore import QRectF
 from PyQt6.QtWidgets import QStyle
 from enum import Enum, auto
+import pyvista as pv 
+pv.global_theme.allow_empty_mesh = True
 
 class AgentMode(Enum):
     COC = auto()
@@ -370,7 +372,7 @@ class SvgPlaneSlider(QSlider):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # First, clear the background with the same color as the webview
-        painter.fillRect(self.rect(), QColor("#E1F4FF"))
+        painter.fillRect(self.rect(), QColor("#E1=F4FF"))
         
         # Draw the groove
         option = QStyleOptionSlider()
@@ -511,6 +513,7 @@ class MainWindow(QMainWindow):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         
         # Setup PyVista plotter
+        # self.plotter = pvqt.QtInteractor(off_screen=True)
         self.plotter = pvqt.QtInteractor()
         self.plotter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout.addWidget(self.plotter.interactor)
@@ -1009,6 +1012,8 @@ class MainWindow(QMainWindow):
         car3 = NPCAgent('car3')
         # grid_bounds = [-2400, 300, -1100, 600, 0, 1100]
         self.plotter.show_grid()
+        self.plotter.show()
+        # combined = pv.PolyData()
         scenario = Scenario(ScenarioConfig(parallel=False))
         car.set_initial(
             initial_state=[[-1, -1001, -1, np.pi/3, np.pi/6, 100], [1, -999, 1, np.pi/3, np.pi/6, 100]],
@@ -1037,6 +1042,11 @@ class MainWindow(QMainWindow):
         scenario.add_agent(car2)
         scenario.add_agent(car3)
         start = time.perf_counter()
+
+        # self.plotter.render_window.GetRenderers().GetFirstRenderer().SetInteractive(False)
+        # self.plotter.interactor.SetInteractorStyle(None)
+        self.plotter.render_window.SetAbortRender(True)    
+
         trace = scenario.verify(Tv, ts, self.plotter) # this is the root
         id = 1+trace.root.id
         models = [[torch.load(f"./examples/simple/acasxu_crown/nets/ACASXU_run2a_{net + 1}_{tau + 1}_batch_2000.pth") for tau in range(9)] for net in range(5)]
@@ -1104,7 +1114,12 @@ class MainWindow(QMainWindow):
                 )
                 id += 1
                 # new_trace = scenario.simulate(Tv, ts)
+                
+                start_ver = time.perf_counter() 
                 new_trace = scenario.verify(Tv, ts, self.plotter)
+                
+                print(f'Verification time: {time.perf_counter()-start_ver:.2f} s')
+
                 temp_root = new_trace.root
                 new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, id)
                 cur_node.child.append(new_node)
@@ -1116,7 +1131,7 @@ class MainWindow(QMainWindow):
 
         trace.nodes = trace._get_all_nodes(trace.root)
         print(f'Verification time: {time.perf_counter()-start}')
-        self.plotter.render()
+        # self.plotter.render()
 
 
     def run_button_clicked(self):

@@ -195,7 +195,7 @@ if __name__ == "__main__":
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
 
     scenario.config.print_level = 0
-    # scenario.config.reachability_method = ReachabilityMethod.DRYVR_DISC
+    scenario.config.reachability_method = ReachabilityMethod.DRYVR_DISC
     scenario.add_agent(car)
     scenario.add_agent(car2)
     start = time.perf_counter()
