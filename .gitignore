@@ -27,3 +27,4 @@ cachier
 out.csv
 results.csv
 *.prof
+test.py

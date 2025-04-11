@@ -160,3 +160,115 @@ class CarAgent(BaseAgent):
             trace[i + 1, 5] = time_step * (i + 1)
             trace[i + 1, 6] = time_step * (i + 1)
         return trace
+
+
+class WeirdCarAgent(CarAgent):
+    def __init__(self, id, code=None, file_name=None):
+        super().__init__(id, code, file_name)
+        self.gain = 0.2
+        self.thres = 0.8
+
+    def action_handler(self, mode: List[str], state, lane_map: LaneMap) -> Tuple[float, float]:
+        vehicle_mode = mode[0]
+        steering, a = self._action_handler(mode, state, lane_map)
+        # print("agnt", vehicle_mode, state, steering, a)
+        return steering, a
+
+    def _action_handler(self, mode: List[str], state, lane_map: LaneMap) -> Tuple[float, float]:
+        vehicle_mode = mode[0]
+        theta = state[2]
+        if abs(theta) > self.thres:
+            return 0, 0
+        if vehicle_mode == "SwitchLeft" and theta >= 0:
+            return self.gain, 0
+        elif vehicle_mode == "SwitchRight" and theta <= 0:
+            return -self.gain, 0
+        else:
+            return 0, 0
+
+
+class CarAgentDebounced(CarAgent):
+    def __init__(
+        self,
+        id,
+        code=None,
+        file_name=None,
+        initial_state=None,
+        initial_mode=None,
+        speed: float = 2,
+        accel: float = 1,
+    ):
+        super().__init__(
+            id,
+            code,
+            file_name,
+            initial_state=initial_state,
+            initial_mode=initial_mode,
+            speed=speed,
+            accel=accel,
+        )
+
+    @staticmethod
+    def dynamic(t, state, u):
+        return super(CarAgentDebounced, CarAgentDebounced).dynamic(t, state[:4], u) + [1]
+
+    def action_handler(self, mode: List[str], state, lane_map: LaneMap) -> Tuple[float, float]:
+        return super(CarAgentDebounced, self).action_handler(
+            mode, state[:4], lane_map
+        )
+
+
+class CarAgentSwitch2(CarAgent):
+    def __init__(
+        self,
+        id,
+        code=None,
+        file_name=None,
+        initial_state=None,
+        initial_mode=None,
+        speed: float = 2,
+        accel: float = 1,
+    ):
+        super().__init__(
+            id,
+            code,
+            file_name,
+            initial_state=initial_state,
+            initial_mode=initial_mode,
+            speed=speed,
+            accel=accel,
+        )
+
+    @staticmethod
+    def dynamic(t, state, u):
+        return super(CarAgentSwitch2, CarAgentSwitch2).dynamic(t, state[:4], u) + [1]
+
+    def action_handler(self, mode: List[str], state, lane_map: LaneMap) -> Tuple[float, float]:
+        x, y, theta, v, _ = state
+        vehicle_mode = mode
+        vehicle_pos = np.array([x, y])
+        a = 0
+        lane_width = lane_map.get_lane_width(vehicle_lane)
+        d = -lane_map.get_lateral_distance(vehicle_lane, vehicle_pos)
+        if vehicle_mode == "Normal" or vehicle_mode == "Stop":
+            pass
+        elif vehicle_mode == "SwitchLeft":
+            d += lane_width
+        elif vehicle_mode == "SwitchRight":
+            d -= lane_width
+        elif vehicle_mode == "SwitchLeft2":
+            d += lane_width * 2
+        elif vehicle_mode == "SwitchRight2":
+            d -= lane_width * 2
+        elif vehicle_mode == "Brake":
+            a = max(-self.accel, -v)
+        elif vehicle_mode == "Accel":
+            a = min(self.accel, self.speed - v)
+        else:
+            raise ValueError(f"Invalid mode: {vehicle_mode}")
+
+        heading = lane_map.get_lane_heading(vehicle_lane, vehicle_pos)
+        psi = wrap_to_pi(heading - theta)
+        steering = psi + np.arctan2(0.45 * d, v)
+        steering = np.clip(steering, -0.61, 0.61)
+        return steering, a

@@ -115,7 +115,7 @@ class DubinSensor():
                 v_own = np.sqrt(curr_vx**2 + curr_vy**2)
                 v_int = np.sqrt((obs_vx)**2 + (obs_vy)**2) #0 # static obstacle, so hardcode zero velocity
                     
-                theta = np.arctan2(dy, dx)
+                theta = np.arctan2(dy, dx) - curr_theta
 
                 psi = np.arctan2(obs_vy, obs_vx) - np.arctan2(curr_vy, curr_vx)
                     
@@ -218,8 +218,8 @@ class DubinSensor():
                 sign_dy_min = np.min([obstacle_y_max - curr_y_min, obstacle_y_min - curr_y_max])
                 sign_dx_min = np.min([obstacle_x_max - curr_x_min, obstacle_x_min - curr_x_max])
                 
-                theta_max = np.max([np.arctan2(sign_dy_max, sign_dx_min), np.arctan2(sign_dy_min, sign_dx_max), np.arctan2(sign_dy_max, sign_dx_max), np.arctan2(sign_dy_min, sign_dx_min)])
-                theta_min = np.min([np.arctan2(sign_dy_max, sign_dx_min), np.arctan2(sign_dy_min, sign_dx_max), np.arctan2(sign_dy_max, sign_dx_max), np.arctan2(sign_dy_min, sign_dx_min)])
+                theta_max = np.max([np.arctan2(sign_dy_max, sign_dx_min), np.arctan2(sign_dy_min, sign_dx_max), np.arctan2(sign_dy_max, sign_dx_max), np.arctan2(sign_dy_min, sign_dx_min)]) - curr_theta_min
+                theta_min = np.min([np.arctan2(sign_dy_max, sign_dx_min), np.arctan2(sign_dy_min, sign_dx_max), np.arctan2(sign_dy_max, sign_dx_max), np.arctan2(sign_dy_min, sign_dx_min)]) - curr_theta_max
 
                 psi_max = obs_theta_max - curr_theta_min #np.arctan2(obs_vy, obs_vx) - np.arctan2(curr_vy, curr_vx)
                 psi_min = obs_theta_min - curr_theta_max
@@ -236,8 +236,8 @@ class DubinSensor():
                 while psi_min > np.pi:
                     psi_min -= 2 * np.pi'''
                 
-                psi_max = np.arctan2(np.sin(psi_max),np.cos(psi_max))
-                psi_min = np.arctan2(np.sin(psi_min),np.cos(psi_min))
+                #psi_max = np.arctan2(np.sin(psi_max),np.cos(psi_max))
+                #psi_min = np.arctan2(np.sin(psi_min),np.cos(psi_min))
                 
                 cont['ego.rho'] = [
                     rho_min, rho_max
