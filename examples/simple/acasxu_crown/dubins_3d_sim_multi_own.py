@@ -48,103 +48,9 @@ def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor
     psi = wrap_to_pi(int_state[3]-own_state[3])
     return torch.tensor([dist, theta, psi, own_state[-1], int_state[-1]])
 
-### expects some 2x5 lists for both sets
-def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> tuple[torch.Tensor]: 
-    def dist(pnt1, pnt2):
-        return np.linalg.norm(
-            np.array(pnt1) - np.array(pnt2)
-        )
-
-    def get_extreme(rect1, rect2):
-        lb11 = rect1[0]
-        lb12 = rect1[1]
-        ub11 = rect1[2]
-        ub12 = rect1[3]
-
-        lb21 = rect2[0]
-        lb22 = rect2[1]
-        ub21 = rect2[2]
-        ub22 = rect2[3]
-
-        # Using rect 2 as reference
-        left = lb21 > ub11 
-        right = ub21 < lb11 
-        bottom = lb22 > ub12
-        top = ub22 < lb12
-
-        if top and left: 
-            dist_min = dist((ub11, lb12),(lb21, ub22))
-            dist_max = dist((lb11, ub12),(ub21, lb22))
-        elif bottom and left:
-            dist_min = dist((ub11, ub12),(lb21, lb22))
-            dist_max = dist((lb11, lb12),(ub21, ub22))
-        elif top and right:
-            dist_min = dist((lb11, lb12), (ub21, ub22))
-            dist_max = dist((ub11, ub12), (lb21, lb22))
-        elif bottom and right:
-            dist_min = dist((lb11, ub12),(ub21, lb22))
-            dist_max = dist((ub11, lb12),(lb21, ub22))
-        elif left:
-            dist_min = lb21 - ub11 
-            dist_max = np.sqrt((lb21 - ub11)**2 + max((ub22-lb12)**2, (ub12-lb22)**2))
-        elif right: 
-            dist_min = lb11 - ub21 
-            dist_max = np.sqrt((lb21 - ub11)**2 + max((ub22-lb12)**2, (ub12-lb22)**2))
-        elif top: 
-            dist_min = lb12 - ub22
-            dist_max = np.sqrt((ub12 - lb22)**2 + max((ub21-lb11)**2, (ub11-lb21)**2))
-        elif bottom: 
-            dist_min = lb22 - ub12 
-            dist_max = np.sqrt((ub22 - lb12)**2 + max((ub21-lb11)**2, (ub11-lb21)**2)) 
-        else: 
-            dist_min = 0 
-            dist_max = max(
-                dist((lb11, lb12), (ub21, ub22)),
-                dist((lb11, ub12), (ub21, lb22)),
-                dist((ub11, lb12), (lb21, ub12)),
-                dist((ub11, ub12), (lb21, lb22))
-            )
-        return dist_min, dist_max
-
-    own_rect = [own_set[i//2][i%2] for i in range(4)]
-    int_rect = [int_set[i//2][i%2] for i in range(4)]
-    d_min, d_max = get_extreme(own_rect, int_rect)
-
-    own_ext = [(own_set[i%2][0], own_set[i//2][1]) for i in range(4)] # will get ll, lr, ul, ur in order
-    int_ext = [(int_set[i%2][0], int_set[i//2][1]) for i in range(4)] 
-
-    arho_min = np.pi # does this make sense
-    arho_max = -np.pi
-    for own_vert in own_ext:
-        for int_vert in int_ext:
-            arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi)
-            arho_max = max(arho_max, arho)
-            arho_min = min(arho_min, arho)
-
-    # there may be some weird bounds due to wrapping
-    # for now, adding 2pi to theta_max, psi_max if either are less than their resp mins
-    # in the future, need to partition reach into multiple theta_bounds if theta_max<theta_min
-    # for example, given t_min, t_max = pi-1, pi+1, instead of wrapping, need to have two bounds
-    # [pi-1,pi] and [-pi, -pi+1] -- would need to do this for psi as well
-    theta_min = wrap_to_pi((2*np.pi-own_set[1][3])+arho_min)
-    theta_max = wrap_to_pi((2*np.pi-own_set[0][3])+arho_max) 
-    theta_max = theta_max + 2*np.pi if theta_max<theta_min else theta_max
-
-    psi_min = wrap_to_pi(int_set[0][3]-own_set[1][3])
-    psi_max = wrap_to_pi(int_set[1][3]-own_set[0][3])
-    psi_max = psi_max + 2*np.pi if psi_max<psi_min else psi_max
-
-    return (torch.tensor([d_min, theta_min, psi_min, own_set[0][-1], 
-                          int_set[0][-1]]), torch.tensor([d_max, theta_max, psi_max, own_set[1][-1], int_set[1][-1]]))
-
 def get_final_states_sim(n) -> Tuple[List]: 
     own_state = n.trace['car1'][-1]
     int_state = n.trace['car2'][-1]
-    return own_state, int_state
-
-def get_final_states_verify(n) -> Tuple[List]: 
-    own_state = n.trace['car1'][-2:]
-    int_state = n.trace['car2'][-2:]
     return own_state, int_state
 
 def get_point_tau(own_state: np.ndarray, int_state: np.ndarray) -> float:
@@ -175,25 +81,12 @@ if __name__ == "__main__":
     script_dir = os.path.realpath(os.path.dirname(__file__))
     input_code_name = os.path.join(script_dir, "controller_3d.py")
     car = CarAgent('car1', file_name=input_code_name)
-    car2 = NPCAgent('car2')
+    car2 = CarAgent('car2',file_name=input_code_name)
     scenario = Scenario(ScenarioConfig(parallel=False))
-    car.set_initial(
-        # initial_state=[[0, -0.5, 0, 1.0], [0.01, 0.5, 0, 1.0]],
-        initial_state=[[-1, -1010, -1, np.pi/3, np.pi/6, 100], [1, -990, 1, np.pi/3, np.pi/6, 100]],
-        # initial_state=[[0, -1001, np.pi/3, 100], [0, -999, np.pi/3, 100]],
-        # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
-        initial_mode=(AgentMode.COC,  )
-    )
-    car2.set_initial(
-        # initial_state=[[15, 15, 0, 0.5], [15, 15, 0, 0.5]],
-        # initial_state=[[-2000, 0, 1000, 0,0, 100], [-2000, 0, 1000, 0,0, 100]],
-        initial_state=[[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]],
-        initial_mode=(AgentMode.COC,  )
-    )
     T = 20
     Tv = 1
     ts = 0.01
-    N = 1
+    N = 100
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
 
     scenario.config.print_level = 0
@@ -214,8 +107,10 @@ if __name__ == "__main__":
     traces = []
     for i in range(N):
         scenario.set_init(
-            [[[-100, -1000, -1, np.pi/3, np.pi/6, 100], [100, -900, 1, np.pi/3, np.pi/6, 100]],
-              [[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]]],
+            # [[[0, 0, 0, np.pi, np.pi/6, 100], [0, 0, 0, np.pi, np.pi/6, 100]],
+            [[[-100, -100, 0, np.pi, np.pi/6, 100], [100, 100, 0, np.pi, np.pi/6, 100]],
+            #   [[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]]],
+                [[-4000, 0, 1000, 0,0, 100], [-4000, 0, 1000, 0,0, 100]]],
             [(AgentMode.COC,  ), (AgentMode.COC,  )]
         )
         trace = scenario.simulate(Tv, ts) # this is the root
@@ -223,21 +118,41 @@ if __name__ == "__main__":
         # net = 0 # eventually this could be modified in the loop by some cmd_list var
         # model = torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth")
         queue = deque()
+        
         queue.append(trace.root) # queue should only contain ATNs  
         while len(queue):
             cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
             own_state, int_state = get_final_states_sim(cur_node)
             acas_state = get_acas_state(own_state[1:], int_state[1:]).float()
+
+            '''
+            Weirdness with ACAS: due to wrapping, slight deviations of theta around pi lead to huge changes in the advisories of int and own:
+            Since theta_int = -theta_own (acas-wise), a slight deviation in theta around pi leads to stuff like theta_int ~= pi and theta_own ~= -pi,
+            Which leads to drastically different advisories
+            '''
+            # print(f'Own cas state: {acas_state}')
             acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
             # ads = model(acas_state.view(1,5)).detach().numpy()
             last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string
             tau_idx = get_tau_idx(own_state[1:], int_state[1:])
-            # print(f'Last Command: {last_cmd}, Tau Index: {tau_idx}')
             ads = models[last_cmd-1][tau_idx](acas_state.view(1,5)).detach().numpy()
+            # print(f'Own advisory scores: {ads}')
             new_mode = np.argmin(ads[0])+1 # will eventually be a list
+
+            last_cmd_2 = getattr(AgentMode, cur_node.mode['car2'][0]).value
+            tau_idx_2 = get_tau_idx(int_state[1:], own_state[1:]) 
+            acas_state_2 = get_acas_state(int_state[1:], own_state[1:]).float()
+            # print(f'\n_______________\nInt acas state: {acas_state_2}')
+            acas_state_2 = (acas_state_2-means_for_scaling)/range_for_scaling
+            ads_2 = models[last_cmd_2-1][tau_idx_2](acas_state_2.view(1,5)).detach().numpy()
+            # print(f'Int advisory scores: {ads_2}')
+            # print(f'Int advisory score using same net as own: {models[last_cmd-1][tau_idx](acas_state_2.view(1,5)).detach().numpy()}')
+            new_mode_2 = np.argmin(ads_2[0])+1 # will eventually be a list
+
+            # print(f'\n_______________\nLast Command: {last_cmd}, Tau Index: {tau_idx}\n Last Command Int: {last_cmd_2}, Tau Index Int: {tau_idx_2}')
             scenario.set_init(
                 [[own_state[1:], own_state[1:]], [int_state[1:], int_state[1:]]], # this should eventually be a range 
-                [(AgentMode(new_mode),  ),(AgentMode.COC,  )]
+                [(AgentMode(new_mode),  ),(AgentMode(new_mode_2),  )]
             )
             id += 1
             new_trace = scenario.simulate(Tv, ts)
