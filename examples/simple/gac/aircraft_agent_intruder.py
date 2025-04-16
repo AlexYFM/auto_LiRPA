@@ -52,6 +52,7 @@ from jax_guam.functional.surf_engine import SurfEngine, SurfEngineState
 from jax_guam.functional.vehicle_eom_simple import VehicleEOMSimple
 from jax_guam.guam_types import AircraftState, AircraftStateVec, EnvData, PwrCmd, RefInputs, Failure_Engines
 from jax_guam.subsystems.environment.environment import Environment
+from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import *
 from jax_guam.subsystems.genctrl_inputs.genctrl_inputs import *
 from jax_guam.subsystems.vehicle_model_ref.power_system import power_system
 from jax_guam.utils.ode import ode3
@@ -273,7 +274,8 @@ class AircraftAgent_Int(BaseAgent):
                 # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, 0)
                 
                 # 11/22 change to constant reference
-                ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, cmd_list)
+                ref_input = acas_reference_inputs(self.dt, initGuamState, 0)
+                # ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, cmd_list)
                 '''vel_bIc = np.array([0, 0, 0])
                 pos_bii = np.array([0, 200, -10])
                 ref_input = RefInputs(vel_bIc, pos_bii, Chi_des=np.array(0.0), Chi_dot_des=np.array(0.0))'''

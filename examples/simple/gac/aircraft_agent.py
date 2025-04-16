@@ -44,13 +44,14 @@ import jax.random as jr
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import tqdm # for progress bar
-from jax_guam.functional.guam_new import FuncGUAM, GuamState
+from jax_guam.functional.guam_new import GuamState
 from jax_guam.functional.aero_prop_new import FuncAeroProp
 from jax_guam.functional.lc_control import LCControl, LCControlState
 from jax_guam.functional.surf_engine import SurfEngine, SurfEngineState
 from jax_guam.functional.vehicle_eom_simple import VehicleEOMSimple
 from jax_guam.guam_types import AircraftState, AircraftStateVec, EnvData, PwrCmd, RefInputs, Failure_Engines
 from jax_guam.subsystems.environment.environment import Environment
+from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import *
 from jax_guam.subsystems.genctrl_inputs.genctrl_inputs import *
 from jax_guam.subsystems.vehicle_model_ref.power_system import power_system
 from jax_guam.utils.ode import ode3
@@ -292,7 +293,8 @@ class AircraftAgent(BaseAgent):
             #ego_cmd = 4
 
             # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, ego_cmd)
-            ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, ego_cmd)
+            # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, ego_cmd)
+            ref_input = acas_reference_inputs(0.1, initGuamState, ego_cmd)
             # JB (5/13) ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, decisions)
             print(state_arr[6:9])
             print(ref_input.Vel_bIc_des, curr_t)

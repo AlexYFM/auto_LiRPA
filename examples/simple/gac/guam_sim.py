@@ -35,6 +35,7 @@ import torch
 from collections import deque
 from torch import nn
 import time
+from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import QrotZ
 
 class AgentMode(Enum):
     COC = auto()
@@ -72,11 +73,12 @@ def get_acas_state_torch(own_state: torch.Tensor, int_state: torch.Tensor) -> to
 def dubins_to_guam_2d(state: List) -> List:
     v = state[-1]
     theta = state[-2]
-    vy = v*np.sin(theta)
-    vx = v*np.cos(theta)
+    quat = QrotZ(theta)
+    vx = v
+    vy = 0
     vz = 0 # set to a constant for now
     x,y,z = state[0], state[1], 0
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, vx, vy, vz, 0.0, 0.0, 0.0, x, y, z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, vx, vy, vz, 0.0, 0.0, 0.0, x, y, z, quat[0], quat[1], quat[2], quat[3], 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
 
 # assuming time is not a part of the state
 def guam_to_dubins_2d(state: np.ndarray) -> List: 
