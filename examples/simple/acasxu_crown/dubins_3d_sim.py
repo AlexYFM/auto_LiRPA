@@ -235,7 +235,6 @@ if __name__ == "__main__":
             [(AgentMode.COC,  ), (AgentMode.COC,  )]
         )
         trace = scenario.simulate(Tv, ts, plotter) # this is the root
-        plotRemaining(plotter)
         id = 1+trace.root.id
         # net = 0 # eventually this could be modified in the loop by some cmd_list var
         # model = torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth")
