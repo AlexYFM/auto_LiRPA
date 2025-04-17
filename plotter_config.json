@@ -5,5 +5,8 @@
     "speed": 99999,
     "speed2": 100,
     "save": false,
+    "time_horizon":20,
+    "time_step":1,
+    "num_sims":0,
     "log_file": "boxes.txt"
 }

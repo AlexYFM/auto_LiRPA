@@ -147,6 +147,10 @@ class SvgPlaneSlider(QSlider):
         slider_center_x = groove_rect.center().x()
         
         # Draw vertical axis line that matches the webview blue color
+        #painter.setPen(QPen(QColor("#3498db"), 2))
+        #painter.drawLine(slider_center_x, slider_start, slider_center_x, slider_start + slider_length)
+        
+        # Add marker lines and text with the webview styling
         font = painter.font()
         font.setPointSize(8)
         font.setBold(True)
@@ -154,6 +158,7 @@ class SvgPlaneSlider(QSlider):
         
         # Draw grid lines matching webview
         painter.setPen(QPen(QColor("rgba(52, 152, 219, 0.15)"), 1))
+        line_width = 28
         
         # Draw horizontal grid lines
         for value in self.marker_values:
@@ -191,7 +196,6 @@ class SvgPlaneSlider(QSlider):
         self.svg_renderer.render(painter, QRectF(0, handle_rect.top(), 30, 30))
         
         painter.end()
-
 
 class StyledButton(QPushButton):
     """Custom styled button with modern look"""
