@@ -1,4 +1,3 @@
-from verse.plotter.plotter2D import *
 from verse.plotter.plotter3D import *
 
 import sys
@@ -157,13 +156,14 @@ class MainWindow(QMainWindow):
     def setup_right_overlay(self):
         """Setup the right side overlay container and its components"""
         self.right_overlay_container = QWidget(self.main_widget)
-        # Position relative to the current window width
+        # Position relative to the current window width with increased height
         overlay_width = 380
-        self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 400)
+        overlay_height = 500  # Increased from 400 to 500
+        self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, overlay_height)
         
         # Create info panel
         self.right_info_panel = RightInfoPanel(self.right_overlay_container)
-        self.right_info_panel.setGeometry(20, 10, 340, 340)  # Made this smaller to fit new controls
+        self.right_info_panel.setGeometry(20, 10, 340, 340)  # Size remains the same
         
         # Add dimension controls
         self.dimensions_label = QLabel("Dimensions:", self.right_overlay_container)
@@ -277,6 +277,77 @@ class MainWindow(QMainWindow):
             }
         """)
         
+        # Add Time Horizon input (NEW)
+        self.time_horizon_label = QLabel("Time Horizon:", self.right_overlay_container)
+        self.time_horizon_label.setGeometry(30, 270, 100, 30)
+        self.time_horizon_label.setStyleSheet("color: white; font-weight: bold;")
+        
+        self.time_horizon_input = QDoubleSpinBox(self.right_overlay_container)
+        self.time_horizon_input.setGeometry(130, 270, 100, 30)
+        self.time_horizon_input.setRange(0.1, 100.0)
+        self.time_horizon_input.setValue(5.0)
+        self.time_horizon_input.setSingleStep(0.5)
+        self.time_horizon_input.setDecimals(1)
+        self.time_horizon_input.setStyleSheet("""
+            QDoubleSpinBox {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QDoubleSpinBox:focus {
+                border: 2px solid #b92980;
+            }
+        """)
+        
+        # Add Number of Simulations input (NEW)
+        self.num_sims_label = QLabel("Number of Simulations:", self.right_overlay_container)
+        self.num_sims_label.setGeometry(30, 310, 150, 30)
+        self.num_sims_label.setStyleSheet("color: white; font-weight: bold;")
+        
+        self.num_sims_input = QSpinBox(self.right_overlay_container)
+        self.num_sims_input.setGeometry(180, 310, 100, 30)
+        self.num_sims_input.setRange(0, 500)
+        self.num_sims_input.setValue(0)
+        self.num_sims_input.setStyleSheet("""
+            QSpinBox {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QSpinBox:focus {
+                border: 2px solid #b92980;
+            }
+        """)
+        
+        # Add Node Level Batching checkbox (NEW)
+        self.node_batching_label = QLabel("Node Level Batching:", self.right_overlay_container)
+        self.node_batching_label.setGeometry(30, 350, 150, 30)
+        self.node_batching_label.setStyleSheet("color: white; font-weight: bold;")
+        
+        self.node_batching_checkbox = QCheckBox(self.right_overlay_container)
+        self.node_batching_checkbox.setGeometry(180, 355, 20, 20)
+        self.node_batching_checkbox.setStyleSheet("""
+            QCheckBox {
+                background-color: transparent;
+            }
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #D477B1;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+            }
+        """)
+        
         # Save to file checkbox
         self.save_to_file_label = QLabel("Save to File:", self.right_overlay_container)
         self.save_to_file_label.setGeometry(30, 180, 100, 30)
@@ -324,9 +395,9 @@ class MainWindow(QMainWindow):
             }
         """)
         
-        # Save config button
+        # Save config button - Move to bottom of extended panel
         self.save_config_button = StyledButton("Save Config", self.right_overlay_container)
-        self.save_config_button.setGeometry(120, 263, 150, 30)
+        self.save_config_button.setGeometry(120, 400, 150, 30)  # Moved down to accommodate new controls
         self.save_config_button.clicked.connect(self.save_config)
         
         # Load config on startup
@@ -348,6 +419,10 @@ class MainWindow(QMainWindow):
             'y_dim': self.y_dim_input.value(),
             'z_dim': self.z_dim_input.value(),
             'speed': self.speed_input.value(),
+            "time_step": self.time_step_input.value(),
+            'time_horizon': self.time_horizon_input.value(),  # Added
+            'num_sims': self.num_sims_input.value(),  # Added
+            'node_batch': self.node_batching_checkbox.isChecked(),  # Added
             'save': self.save_to_file_checkbox.isChecked(),
             'log_file': self.log_file_input.text()
         }
@@ -374,6 +449,11 @@ class MainWindow(QMainWindow):
                 self.y_dim_input.setValue(config.get('y_dim', 1))
                 self.z_dim_input.setValue(config.get('z_dim', 2))
                 self.speed_input.setValue(int(config.get('speed', 100)))
+                self.time_step_input.setValue(float(config.get('time_step', 0.1)))
+                # Load new fields with default values if not present
+                self.time_horizon_input.setValue(float(config.get('time_horizon', 5.0)))
+                self.num_sims_input.setValue(int(config.get('num_sims', 0)))
+                self.node_batching_checkbox.setChecked(bool(config.get('node_batch', False)))
                 self.save_to_file_checkbox.setChecked(bool(config.get('save', False)))
                 self.log_file_input.setText(config.get('log_file', 'boxes.txt'))
                 
@@ -436,7 +516,8 @@ class MainWindow(QMainWindow):
         # Keep right overlay correctly positioned relative to the current window edge
         if hasattr(self, 'right_overlay_container') and self.right_overlay_visible:
             overlay_width = 380
-            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 300)
+            overlay_height = 500
+            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, overlay_height)
         
         # Update right tab position
         if hasattr(self, 'right_side_tab'):
@@ -849,20 +930,18 @@ class MainWindow(QMainWindow):
     def run_button_clicked(self):
         """Callback for the Run button (normal mode)"""
         self.web_view.page().runJavaScript("getPlanePositions();", 
-                                        lambda positions: self.handle_positions(positions, True))
+                                        lambda positions: self.handle_inputs(positions, True))
 
     def run_simulate_clicked(self):
         """Callback for the Run Simulate button (simulation mode)"""
         self.web_view.page().runJavaScript("getPlanePositions();", 
-                                        lambda positions: self.handle_positions(positions, False))
+                                        lambda positions: self.handle_inputs(positions, False))
 
-    def handle_positions(self, positions, verify):
+    def handle_inputs(self, positions, verify):
         # Check if file input has content
         file_path = self.file_input.text().strip()
         if file_path:
             # If file specified, load boxes first
-            if hasattr(self, 'thread') and self.thread:
-                self.thread.join()
             self.plotter.clear()
             self.plotter.show_grid(all_edges=True, n_xlabels = 6, n_ylabels = 6, n_zlabels = 6)
             load_and_plot(self.plotter, log_file=file_path)
@@ -901,14 +980,27 @@ class MainWindow(QMainWindow):
                     time_horizon = config['time_horizon']
                     time_step = config['time_step']
                     num_sims = config['num_sims']
+                    save_to_file = config['save']
+                    log_file = config['log_file']
+
+
             if(verify):
                 num_sims = 0
+            global node_rect_cache
+            global node_idx
+            node_rect_cache ={}
+            node_idx =0
 
+            if save_to_file:
+                with open(log_file, "w") as f:
+                    f.write("")  # Optional: just clears the file
 
-            #self.verse_bridge.updatePlane(x =x1,y =y1, z=z1, radius= s1, pitch=np.pi/3,yaw=np.pi/6, v=100, agent_type="Car" )
-            #self.verse_bridge.updatePlane(x =x2,y =y2, z=z2, radius=s2, pitch=np.pi/3,yaw=np.pi/6, v=100, agent_type="NPC"  )
+            #for id in agents:
+
+                #self.verse_bridge.updatePlane(x =x1,y =y1, z=z1, radius= s1, pitch=np.pi/3,yaw=np.pi/6, v=100, agent_type="Car" )
             
             self.verse_bridge.run_verse(x_dim=x_dim, y_dim=y_dim, z_dim=z_dim, time_horizon=time_horizon, time_step=time_step, num_sims=num_sims )
+            plotRemaining(self.plotter, verify)
 
 
     def _set_python_bridge(self, result):

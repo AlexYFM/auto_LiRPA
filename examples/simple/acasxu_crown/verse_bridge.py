@@ -280,10 +280,10 @@ class VerseBridge():
         #normally just run verify once
 
         # if(num_sims ==0 ):
-        #     scenario.verify(time_horizon, time_step, ax)
+        #     scenario.verify(time_horizon, time_step, self.plotter)
         # else:
         #     for i in range(num_sims):
-        #         scenario.simulate(time_horizon, time_step, ax)
+        #         scenario.simulate(time_horizon, time_step, self.plotter)
 
         # Define whatever here:
 

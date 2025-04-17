@@ -2,11 +2,11 @@
     "x_dim": 1,
     "y_dim": 2,
     "z_dim": 3,
-    "speed": 99999,
-    "speed2": 100,
-    "save": false,
-    "time_horizon":20,
-    "time_step":1,
-    "num_sims":0,
-    "log_file": "boxes.txt"
+    "speed": 2,
+    "time_step": 0.1,
+    "time_horizon": 1.0,
+    "num_sims": 0,
+    "node_batch": true,
+    "save": true,
+    "log_file": "boxes_multi.txt"
 }
