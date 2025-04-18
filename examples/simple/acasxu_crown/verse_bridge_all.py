@@ -198,14 +198,29 @@ class VerseBridge():
 
         #Can hardcode like this:
 
+        # self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
+        # self.addInitialSet("car1", [[-1, -1001, -1, np.pi/3, np.pi/6, 100], [1, -999, 1, np.pi/3, np.pi/6, 100]])
+        
+        # self.updatePlane(id="car2", agent_type="NPC" )
+        # self.addInitialSet("car2",[[-2001, 99, 999, 0,0, 100], [-1999, 101, 1001, 0,0, 100]])
+
+        # self.updatePlane(id="car3", agent_type="NPC" )
+        # self.addInitialSet("car3",[[1999, -1, 999, np.pi,0, 100], [2001, 1, 1001, np.pi,0, 100]])
+
+        # Below is equivalent to multi_own
+
+        # self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
+        # self.addInitialSet("car1", [[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]])
+
+        # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
+        # self.addInitialSet("car2",[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]])
+
+
         self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
-        self.addInitialSet("car1", [[-1, -1001, -1, np.pi/3, np.pi/6, 100], [1, -999, 1, np.pi/3, np.pi/6, 100]])
+        self.addInitialSet("car1", [[-100, -100, -1, np.pi, np.pi/6, 100], [100, 100, 1, np.pi, np.pi/6, 100]])
 
-        self.updatePlane(id="car2", agent_type="NPC" )
-        self.addInitialSet("car2",[[-2001, 99, 999, 0,0, 100], [-1999, 101, 1001, 0,0, 100]])
-
-        self.updatePlane(id="car3", agent_type="NPC" )
-        self.addInitialSet("car3",[[1999, -1, 999, np.pi,0, 100], [2001, 1, 1001, np.pi,0, 100]])
+        self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
+        self.addInitialSet("car2",[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]])
 
     #uses input from from GUI
     def updatePlane(self, id="", agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
@@ -227,9 +242,7 @@ class VerseBridge():
     def removePlane(self, id):
         self.agents.pop(id)
 
-
-
-    def run_verse(self, ax= None, time_horizon=80, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0):
+    def run_verse(self, ax= None, time_horizon=80, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0, verify=True):
         scenario = Scenario(ScenarioConfig( parallel=False))
         agent_ids = list(self.agents.keys())
         acas_agent_ids = []
@@ -257,128 +270,155 @@ class VerseBridge():
             scenario.set_init_single(
                 id, init_set, (init_mode,)
             )
-        
-        # print(agent_ids, acas_agent_ids)
+
         self.plotter.clear()
-
         self.plotter.show_grid()
-
-        #normally just run verify once
-
-        # if(num_sims ==0 ):
-        #     scenario.verify(time_horizon, time_step, self.plotter)
-        # else:
-        #     for i in range(num_sims):
-        #         scenario.simulate(time_horizon, time_step, self.plotter)
-
-        # Define whatever here:
-
-        #=====================================================================================================================
-
         T = 20
-
         #should define in plotter config instead
         Tv = 1
         ts = 0.01
-
-
-        # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
-
         scenario.config.print_level = 0
-        scenario.config.reachability_method = ReachabilityMethod.DRYVR_DISC
-       
         start = time.perf_counter()
-
-        # self.plotter.render_window.GetRenderers().GetFirstRenderer().SetInteractive(False)
-        # self.plotter.interactor.SetInteractorStyle(None)
-        #self.plotter.render_window.SetAbortRender(True)    
-
-        trace = scenario.verify(Tv,ts, self.plotter) # this is the root
-        node_id = 1+trace.root.id
         models = [[torch.load(f"./examples/simple/acasxu_crown/nets/ACASXU_run2a_{net + 1}_{tau + 1}_batch_2000.pth") for tau in range(9)] for net in range(5)]
         norm = float("inf")
+        # above is agnostic of verify/simulate
+        #=====================================================================================================================
+        if verify:
+            scenario.config.reachability_method = ReachabilityMethod.DRYVR_DISC
 
-        queue = deque()
-        queue.append(trace.root) # queue should only contain ATNs  
-        ### begin looping
-        while len(queue):
-            cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
-            states = get_final_states_verify(cur_node, agent_ids)
-            # print(states)
-            all_modes = {}
-            for own_id in acas_agent_ids:
-                modes = set()
-                tau_idx_min = {int_id: min(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
-                tau_idx_max = {int_id: max(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
-                reachsets = {int_id: get_acas_reach(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}
-                
-                closest_ids = []
-                closest_id = min(reachsets, key=lambda k:reachsets[k][0][0][0])
-                closest_dist_upper = reachsets[closest_id][0][1][0]
+            # self.plotter.render_window.GetRenderers().GetFirstRenderer().SetInteractive(False)
+            # self.plotter.interactor.SetInteractorStyle(None)
+            #self.plotter.render_window.SetAbortRender(True)    
 
-                for id in reachsets:
-                    if reachsets[id][0][0][0]<= closest_dist_upper:
-                        closest_ids.append(id)
+            trace = scenario.verify(Tv,ts, self.plotter) # this is the root
+            node_id = 1+trace.root.id
 
-                for id in closest_ids: # iterate over closest intruder(s) 
-                    for reachset in reachsets[id]: # iterate over reachsets
-                        if len(modes)==5: # if all modes are possible, stop iterating
-                            break 
-                        acas_min, acas_max = reachset
-                        acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
-                        x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
-                        x = (x_l+x_u)/2
 
-                        last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
-                        for tau_idx in range(tau_idx_min[id], tau_idx_max[id]+1):
-                            lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
-                            # lirpa_model = BoundedModule(model, (torch.empty_like(x))) 
-                            ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
-                            bounded_x = BoundedTensor(x, ptb=ptb_x)
-                            lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
-
-                            new_mode = np.argmin(lb.numpy())+1                             
-                            new_modes = []
-                            for i in range(len(ub.numpy()[0])):
-                                lower = lb.numpy()[0][i]
-                                if lower<=ub.numpy()[0][new_mode-1]:
-                                    new_modes.append(i+1)
-                            modes.update(new_modes)
-
-                all_modes.update({own_id: modes})
-            # print(modes, cur_node.start_time) # at 15 s, all modes possible -- investigate why
-            
-            all_modes_list = [all_modes[own_id] for own_id in acas_agent_ids]
-            for nm in itertools.product(*all_modes_list):
-                cur_modes = dict(zip(acas_agent_ids, nm))
-                for id in agent_ids:
-                    cur_mode = AgentMode(cur_modes[id]) if id in acas_agent_ids else AgentMode.COC
-                    scenario.set_init_single(
-                        id, states[id], (cur_mode,) # np array may not work
-                    )
-                node_id += 1
-                # new_trace = scenario.simulate(Tv, ts)
-                
-                # start_ver = time.perf_counter() 
-                new_trace = scenario.verify(Tv, ts, self.plotter)
-                
-                # print(f'Verification time: {time.perf_counter()-start_ver:.2f} s')
-
-                temp_root = new_trace.root
-                new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, node_id)
-                cur_node.child.append(new_node)
-                print(f'Start time: {new_node.start_time}\nNode ID: {node_id}\nNew modes: {cur_modes}')
+            queue = deque()
+            queue.append(trace.root) # queue should only contain ATNs  
+            ### begin looping
+            while len(queue):
+                cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
+                states = get_final_states_verify(cur_node, agent_ids)
+                # print(states)
+                all_modes = {}
+                for own_id in acas_agent_ids:
+                    modes = set()
+                    tau_idx_min = {int_id: min(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
+                    tau_idx_max = {int_id: max(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
+                    reachsets = {int_id: get_acas_reach(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}
                     
-                if new_node.start_time + Tv>=T: # if the time of the current simulation + start_time is at or above total time, don't add
-                    continue
-                queue.append(new_node)
+                    closest_ids = []
+                    closest_id = min(reachsets, key=lambda k:reachsets[k][0][0][0])
+                    closest_dist_upper = reachsets[closest_id][0][1][0]
 
-        trace.nodes = trace._get_all_nodes(trace.root)
-        print(f'Verification time: {time.perf_counter()-start}')
+                    for id in reachsets:
+                        if reachsets[id][0][0][0]<= closest_dist_upper:
+                            closest_ids.append(id)
 
+                    for id in closest_ids: # iterate over closest intruder(s) 
+                        for reachset in reachsets[id]: # iterate over reachsets
+                            if len(modes)==5: # if all modes are possible, stop iterating
+                                break 
+                            acas_min, acas_max = reachset
+                            acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
+                            x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
+                            x = (x_l+x_u)/2
 
-       
-        
+                            last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
+                            for tau_idx in range(tau_idx_min[id], tau_idx_max[id]+1):
+                                lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
+                                # lirpa_model = BoundedModule(model, (torch.empty_like(x))) 
+                                ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
+                                bounded_x = BoundedTensor(x, ptb=ptb_x)
+                                lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
 
-    
+                                new_mode = np.argmin(lb.numpy())+1                             
+                                new_modes = []
+                                for i in range(len(ub.numpy()[0])):
+                                    lower = lb.numpy()[0][i]
+                                    if lower<=ub.numpy()[0][new_mode-1]:
+                                        new_modes.append(i+1)
+                                modes.update(new_modes)
 
+                    all_modes.update({own_id: modes})
+                # print(modes, cur_node.start_time) # at 15 s, all modes possible -- investigate why
+                
+                all_modes_list = [all_modes[own_id] for own_id in acas_agent_ids]
+                for nm in itertools.product(*all_modes_list):
+                    cur_modes = dict(zip(acas_agent_ids, nm))
+                    for id in agent_ids:
+                        cur_mode = AgentMode(cur_modes[id]) if id in acas_agent_ids else AgentMode.COC
+                        scenario.set_init_single(
+                            id, states[id], (cur_mode,) # np array may not work
+                        )
+                    node_id += 1
+                    # new_trace = scenario.simulate(Tv, ts)
+                    
+                    # start_ver = time.perf_counter() 
+                    new_trace = scenario.verify(Tv, ts, self.plotter)
+                    
+                    # print(f'Verification time: {time.perf_counter()-start_ver:.2f} s')
+
+                    temp_root = new_trace.root
+                    new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, node_id)
+                    cur_node.child.append(new_node)
+                    print(f'Start time: {new_node.start_time}\nNode ID: {node_id}\nNew modes: {cur_modes}')
+                        
+                    if new_node.start_time + Tv>=T: # if the time of the current simulation + start_time is at or above total time, don't add
+                        continue
+                    queue.append(new_node)
+
+            trace.nodes = trace._get_all_nodes(trace.root)
+            print(f'Verification time: {time.perf_counter()-start}')
+
+        else:
+            N = 10
+            for __ in range(N):
+                for id, val in self.agents.items():
+                    init_mode = val["init_mode"]
+                    init_set = val["init_set"]
+                    scenario.set_init_single(
+                        id, init_set, (init_mode,)
+                    )
+                trace = scenario.simulate(Tv,ts, self.plotter) # this is the root
+                node_id = 1+trace.root.id
+                models = [[torch.load(f"./examples/simple/acasxu_crown/nets/ACASXU_run2a_{net + 1}_{tau + 1}_batch_2000.pth") for tau in range(9)] for net in range(5)]
+                norm = float("inf")
+
+                queue = deque()
+                queue.append(trace.root) # queue should only contain ATNs  
+                ### begin looping
+                while len(queue):
+                    cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
+                    states = get_final_states_sim(cur_node, agent_ids)
+                    # print(states)
+                    all_modes = {}
+                    for own_id in acas_agent_ids:
+                        tau_idxs = {int_id: get_tau_idx(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}
+                        acas_states = {int_id: get_acas_state(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}                    
+                        closest_id = min(acas_states, key=lambda k:acas_states[k][0])
+                        tau_idx = tau_idxs[closest_id]
+                        acas_state = acas_states[closest_id]
+                        acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
+                        last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
+                        ads = models[last_cmd-1][tau_idx](acas_state.float().view(1,5)).detach().numpy()
+                        new_mode = np.argmin(ads[0])+1 # will eventually be a list
+                        all_modes[own_id] = new_mode
+                    
+                    for id in agent_ids:
+                        cur_mode = AgentMode(all_modes[id]) if id in acas_agent_ids else AgentMode.COC
+                        scenario.set_init_single(
+                            id, [states[id] for _ in range(2)], (cur_mode,) # np array may not work
+                        )
+                    node_id += 1
+                    new_trace = scenario.simulate(Tv, ts, self.plotter)
+                    temp_root = new_trace.root
+                    new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, node_id)
+                    cur_node.child.append(new_node)                    
+                    if new_node.start_time + Tv>=T: # if the time of the current simulation + start_time is at or above total time, don't add
+                        continue
+                    queue.append(new_node)
+
+                trace.nodes = trace._get_all_nodes(trace.root)
+            print(f'Simulation time for {N} simulations: {time.perf_counter()-start}')

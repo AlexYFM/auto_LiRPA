@@ -1042,7 +1042,7 @@ class MainWindow(QMainWindow):
         while len(queue):
             cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
             own_state, int_state = get_final_states_verify(cur_node)
-            tau_idx_min, tau_idx_max = get_tau_idx(own_state[1], int_state[0]), get_tau_idx(own_state[0], int_state[1]) 
+            tau_idx_min, tau_idx_max = get_tau_idx(own_state[1][1:], int_state[0][1:]), get_tau_idx(own_state[0][1:], int_state[1][1:]) 
             # print(tau_idx_min, tau_idx_max)
             
             ### make below a function when I have time, will eventually need to do pairwise comparisons between all agents 
@@ -1091,7 +1091,7 @@ class MainWindow(QMainWindow):
                 x = (x_l+x_u)/2
 
                 last_cmd = getattr(AgentMode, cur_node.mode['car2'][0]).value  # cur_mode.mode[.] is some string 
-                for tau_idx in range(tau_idx_min, tau_idx_max+1):
+                for tau_idx in range(tau_idx_min_int, tau_idx_max_int+1):
                     lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
                     # lirpa_model = BoundedModule(model, (torch.empty_like(x))) 
                     ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)

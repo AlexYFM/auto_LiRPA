@@ -86,7 +86,7 @@ if __name__ == "__main__":
     T = 20
     Tv = 1
     ts = 0.01
-    N = 1
+    N = 10
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
 
     scenario.config.print_level = 0

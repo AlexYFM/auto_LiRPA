@@ -1000,7 +1000,7 @@ class MainWindow(QMainWindow):
 
                 #self.verse_bridge.updatePlane(x =x1,y =y1, z=z1, radius= s1, pitch=np.pi/3,yaw=np.pi/6, v=100, agent_type="Car" )
             
-            self.verse_bridge.run_verse(x_dim=x_dim, y_dim=y_dim, z_dim=z_dim, time_horizon=time_horizon, time_step=time_step, num_sims=num_sims )
+            self.verse_bridge.run_verse(x_dim=x_dim, y_dim=y_dim, z_dim=z_dim, time_horizon=time_horizon, time_step=time_step, num_sims=num_sims, verify=verify)
             plotRemaining(self.plotter, verify)
 
 

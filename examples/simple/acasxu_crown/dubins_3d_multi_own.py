@@ -286,7 +286,7 @@ if __name__ == "__main__":
             x = (x_l+x_u)/2
 
             last_cmd = getattr(AgentMode, cur_node.mode['car2'][0]).value  # cur_mode.mode[.] is some string 
-            for tau_idx in range(tau_idx_min, tau_idx_max+1):
+            for tau_idx in range(tau_idx_min_int, tau_idx_max_int+1):
                 lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
                 # lirpa_model = BoundedModule(model, (torch.empty_like(x))) 
                 ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
