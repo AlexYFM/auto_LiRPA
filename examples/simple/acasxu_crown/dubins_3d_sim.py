@@ -3,7 +3,7 @@ from verse.map.example_map.map_tacas import M1
 from verse.scenario.scenario import Benchmark
 from enum import Enum, auto
 from verse.plotter.plotter2D import *
-from verse.plotter.plotter3D_new import *
+from verse.plotter.plotter3D import *
 from verse import Scenario, ScenarioConfig
 from verse.analysis.verifier import ReachabilityMethod
 import sys
@@ -17,6 +17,7 @@ from torch import nn
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import PerturbationLpNorm
 import time
+import pyvista as pv
 
 class AgentMode(Enum):
     COC = auto()
@@ -172,6 +173,8 @@ def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray) -> int:
 
 if __name__ == "__main__":
     import os
+    plotter = pv.Plotter()
+    plotter.show(interactive=False, auto_close=False)
     script_dir = os.path.realpath(os.path.dirname(__file__))
     input_code_name = os.path.join(script_dir, "controller_3d.py")
     car = CarAgent('car1', file_name=input_code_name)
@@ -193,7 +196,7 @@ if __name__ == "__main__":
     T = 20
     Tv = 1
     ts = 0.01
-    N = 1
+    N = 200
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
 
     scenario.config.print_level = 0
@@ -211,6 +214,8 @@ if __name__ == "__main__":
     # queue = deque()
     # queue.append(trace.root) # queue should only contain ATNs  
     ### begin looping
+    plotter.show_grid()
+
     traces = []
     for i in range(N):
         scenario.set_init(
@@ -218,7 +223,7 @@ if __name__ == "__main__":
               [[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]]],
             [(AgentMode.COC,  ), (AgentMode.COC,  )]
         )
-        trace = scenario.simulate(Tv, ts) # this is the root
+        trace = scenario.simulate(Tv, ts, plotter) # this is the root
         id = 1+trace.root.id
         # net = 0 # eventually this could be modified in the loop by some cmd_list var
         # model = torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth")
@@ -240,7 +245,8 @@ if __name__ == "__main__":
                 [(AgentMode(new_mode),  ),(AgentMode.COC,  )]
             )
             id += 1
-            new_trace = scenario.simulate(Tv, ts)
+            new_trace = scenario.simulate(Tv, ts, plotter )
+            plotter.reset_camera()
             temp_root = new_trace.root
             new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, id)
             cur_node.child.append(new_node)
@@ -253,11 +259,13 @@ if __name__ == "__main__":
 
     print(f'Total {N} simulations: {(time.perf_counter()-start):.2f} s')
     trace.nodes = trace._get_all_nodes(trace.root)
+    plotter.show(interactive=True)
+
     # for node in trace.nodes:
     #     print(f'Start time: {node.start_time}, Mode: ', node.mode['car1'][0])
-    fig = go.Figure()
+    #fig = go.Figure()
     print(len(traces))
-    for trace in traces:
-        fig = simulation_tree_3d(trace, fig,1,'x', 2,'y',3,'z')
-    # fig = simulation_tree_3d(trace, fig,1,'x', 2,'y',3,'z')
-    fig.show()
+    # for trace in traces:
+    #     fig = simulation_tree_3d(trace, fig,1,'x', 2,'y',3,'z')
+    # # fig = simulation_tree_3d(trace, fig,1,'x', 2,'y',3,'z')
+    # fig.show()

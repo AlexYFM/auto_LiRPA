@@ -1,216 +1,20 @@
-from wsgiref.validate import PartialIteratorWrapper
-from dubins_3d_agent import CarAgent, NPCAgent
-from verse import Scenario, ScenarioConfig
-
-from verse.plotter.plotter2D import *
 from verse.plotter.plotter3D import *
-from verse.plotter.plotter3D_new import *
 
-
-from verse.map.example_map.map_tacas import M1
-
-from verse.analysis.verifier import ReachabilityMethod
-import torch
-from auto_LiRPA import BoundedTensor
-from verse.utils.utils import wrap_to_pi
-from collections import deque
-from torch import nn
-from auto_LiRPA import BoundedModule, BoundedTensor
-from auto_LiRPA.perturbations import PerturbationLpNorm
-
-import time
 import sys
 import numpy as np
 import os
-import threading
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QWidget, 
-    QSizePolicy, QLabel,QTextEdit, QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox, QCheckBox
-)
-
-from PyQt6.QtCore import Qt
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab,RightInfoPanel
-
-
-from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
-import pyvistaqt as pvqt
 import json
 
-class AgentMode(Enum):
-    COC = auto()
-    WL = auto()
-    WR = auto()
-    SL = auto()
-    SR = auto()
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QVBoxLayout, QWidget, 
+    QSizePolicy, QLabel, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox
+)
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab,RightInfoPanel
+import pyvistaqt as pvqt
+from verse_bridge import VerseBridge
 
-class TrackMode(Enum):
-    T0 = auto()
-    T1 = auto()
-    T2 = auto()
-    M01 = auto()
-    M12 = auto()
-    M21 = auto()
-    M10 = auto()
-
-
-means_for_scaling = torch.FloatTensor([19791.091, 0.0, 0.0, 650.0, 600.0])
-range_for_scaling = torch.FloatTensor([60261.0, 6.28318530718, 6.28318530718, 1100.0, 1200.0])
-tau_list = [0, 1, 5, 10, 20, 50, 60, 80, 100] 
-# tau = -(z_int-z_own)/(vz_int-vz_own)
-# corresponds to last index (1,2,...,9), if >100 return index of 100, if <0 can return index of 0 but also means no chance of collision -- for ref, SB just stops simulating past tau<0
-# if between two taus (e.g., 60 and 80), then choose the closer one, rounding down following SB's examples (e.g. if at tau=70, choose index of 60 instead of 80)
-
-# recall new_state is [x,y,z,th,psi,v]
-def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor:
-    dist = np.sqrt((own_state[0]-int_state[0])**2+(own_state[1]-int_state[1])**2)
-    theta = wrap_to_pi((2*np.pi-own_state[3])+np.arctan2(int_state[1]-own_state[1], int_state[0]-own_state[0]))
-    psi = wrap_to_pi(int_state[3]-own_state[3])
-    return torch.tensor([dist, theta, psi, own_state[-1], int_state[-1]])
-
-# recall new_state is [x,y,z,th,psi,v]
-### expects some 2x5 np arrays for both sets
-def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch.Tensor]]: 
-    def dist(pnt1, pnt2):
-        return np.linalg.norm(
-            np.array(pnt1) - np.array(pnt2)
-        )
-
-    def get_extreme(rect1, rect2):
-        lb11 = rect1[0]
-        lb12 = rect1[1]
-        ub11 = rect1[2]
-        ub12 = rect1[3]
-
-        lb21 = rect2[0]
-        lb22 = rect2[1]
-        ub21 = rect2[2]
-        ub22 = rect2[3]
-
-        # Using rect 2 as reference
-        left = lb21 > ub11 
-        right = ub21 < lb11 
-        bottom = lb22 > ub12
-        top = ub22 < lb12
-
-        if top and left: 
-            dist_min = dist((ub11, lb12),(lb21, ub22))
-            dist_max = dist((lb11, ub12),(ub21, lb22))
-        elif bottom and left:
-            dist_min = dist((ub11, ub12),(lb21, lb22))
-            dist_max = dist((lb11, lb12),(ub21, ub22))
-        elif top and right:
-            dist_min = dist((lb11, lb12), (ub21, ub22))
-            dist_max = dist((ub11, ub12), (lb21, lb22))
-        elif bottom and right:
-            dist_min = dist((lb11, ub12),(ub21, lb22))
-            dist_max = dist((ub11, lb12),(lb21, ub22))
-        elif left:
-            dist_min = lb21 - ub11 
-            dist_max = np.sqrt((lb21 - ub11)**2 + max((ub22-lb12)**2, (ub12-lb22)**2))
-        elif right: 
-            dist_min = lb11 - ub21 
-            dist_max = np.sqrt((lb21 - ub11)**2 + max((ub22-lb12)**2, (ub12-lb22)**2))
-        elif top: 
-            dist_min = lb12 - ub22
-            dist_max = np.sqrt((ub12 - lb22)**2 + max((ub21-lb11)**2, (ub11-lb21)**2))
-        elif bottom: 
-            dist_min = lb22 - ub12 
-            dist_max = np.sqrt((ub22 - lb12)**2 + max((ub21-lb11)**2, (ub11-lb21)**2)) 
-        else: 
-            dist_min = 0 
-            dist_max = max(
-                dist((lb11, lb12), (ub21, ub22)),
-                dist((lb11, ub12), (ub21, lb22)),
-                dist((ub11, lb12), (lb21, ub12)),
-                dist((ub11, ub12), (lb21, lb22))
-            )
-        return dist_min, dist_max
-
-    own_rect = [own_set[i//2][i%2] for i in range(4)]
-    int_rect = [int_set[i//2][i%2] for i in range(4)]
-    d_min, d_max = get_extreme(own_rect, int_rect)
-
-    own_ext = [(own_set[i%2][0], own_set[i//2][1]) for i in range(4)] # will get ll, lr, ul, ur in order
-    int_ext = [(int_set[i%2][0], int_set[i//2][1]) for i in range(4)] 
-
-    arho_min = np.inf # does this make sense
-    arho_max = -np.inf
-    for own_vert in own_ext:
-        for int_vert in int_ext:
-            arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi)
-            arho_max = max(arho_max, arho)
-            arho_min = min(arho_min, arho)
-
-    theta_min = wrap_to_pi((2*np.pi-own_set[1][3])+arho_min)
-    theta_max = wrap_to_pi((2*np.pi-own_set[0][3])+arho_max) 
-    theta_maxs = []
-    theta_mins = []
-    if theta_max<theta_min: # bound issue due to wrapping
-        theta_mins = [-np.pi, theta_min]
-        theta_maxs = [theta_max, np.pi]
-    else:
-        theta_mins = [theta_min]
-        theta_maxs = [theta_max]
-
-    psi_min = wrap_to_pi(int_set[0][3]-own_set[1][3])
-    psi_max = wrap_to_pi(int_set[1][3]-own_set[0][3])
-    psi_maxs = []
-    psi_mins = []
-    if psi_max<psi_min: # bound issue due to wrapping
-        psi_mins = [-np.pi, psi_min]
-        psi_maxs = [psi_max, np.pi]
-    else:
-        psi_mins = [psi_min]
-        psi_maxs = [psi_max]
-
-    sets = [(torch.tensor([d_min, theta_mins[i], psi_mins[j], own_set[0][-1], int_set[0][-1]]), 
-             torch.tensor([d_max, theta_maxs[i], psi_maxs[j], own_set[1][-1], int_set[1][-1]])) for i in range(len(theta_mins)) for j in range(len(psi_mins))]
-    
-    return sets
-
-def wtp(x: float): 
-    return torch.remainder((x + torch.pi), (2 * torch.pi)) - torch.pi
-
-def get_acas_state_torch(own_state: torch.Tensor, int_state: torch.Tensor) -> torch.Tensor:
-    dist = torch.sqrt((own_state[:,0:1]-int_state[:,0:1])**2+(own_state[:,1:2]-int_state[:,1:2])**2)
-    theta = wtp((2*torch.pi-own_state[:,3:4])+torch.arctan2(int_state[:,1:2], int_state[:,0:1]))
-    # theta = wtp((2*torch.pi-own_state[:,2:3])+torch.arctan(int_state[:,1:2]/int_state[:,0:1]))
-    psi = wtp(int_state[:,3:4]-own_state[:,3:4])
-    # return torch.cat([dist, own_state[:,3:4], psi, own_state[:,3:4], int_state[:,3:4]], dim=1)
-    return torch.cat([dist, theta, psi, own_state[:,5:6], int_state[:,5:6]], dim=1)
-
-def get_final_states_sim(n) -> Tuple[List]: 
-    own_state = n.trace['car1'][-1]
-    int_state = n.trace['car2'][-1]
-    return own_state, int_state
-
-def get_final_states_verify(n) -> Tuple[List]: 
-    own_state = n.trace['car1'][-2:]
-    int_states = [n.trace['car2'][-2:], n.trace['car3'][-2:]]
-    return own_state, int_states
-
-def get_point_tau(own_state: np.ndarray, int_state: np.ndarray) -> float:
-    z_own, z_int = own_state[2], int_state[2]
-    vz_own, vz_int = own_state[-1]*np.sin(own_state[-2]), int_state[-1]*np.sin(int_state[-2])
-    return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
-
-def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray) -> int:
-    tau = get_point_tau(own_state, int_state)
-    # print(tau)
-    if tau<0:
-        return 0 # following Stanley Bak, if tau<0, return 0 -- note that Stanley Bak also ends simulation if tau<0
-    if tau>tau_list[-1]:
-        return len(tau_list)-1 
-    for i in range(len(tau_list)-1):
-        tau_low, tau_up = tau_list[i], tau_list[i+1]
-        if tau_low <= tau <= tau_up:
-            if np.abs(tau-tau_low)<=np.abs(tau-tau_up):
-                return i
-            else:
-                return i+1
-            
-    return len(tau_list)-1 # this should be unreachable
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -220,22 +24,16 @@ class MainWindow(QMainWindow):
         # Initialize variables
         self.plane1_position = 0
         self.plane2_position = 0
-        self.thread = None
         self.overlay_visible = True
         self.right_overlay_visible = True  # Add this line
-        
         # Setup main UI
         self.setup_main_ui()
-        
         # Setup left overlay
         self.setup_overlay()
-        
         # Setup right overlay
         self.setup_right_overlay()  # Add this line
-        
         # Setup web view
         self.setup_web_view()
-        
         # Setup side tabs
         self.setup_side_tab()
         self.setup_right_tab()  # Add this line
@@ -249,6 +47,9 @@ class MainWindow(QMainWindow):
         
         self.side_tab.raise_()
         self.right_side_tab.raise_()  # Add this line
+        
+
+        self.agents =[]
 
 
     def setup_main_ui(self):
@@ -262,10 +63,7 @@ class MainWindow(QMainWindow):
         self.plotter = pvqt.QtInteractor()
         self.plotter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout.addWidget(self.plotter.interactor)
-
-        # cube = pv.Cube(center=(0, 0, 0), x_length=1, y_length=1, z_length=1)
-        # self.plotter.add_mesh(cube, show_edges=True, color='lightgreen', opacity=0.5)
-        
+        self.verse_bridge  = VerseBridge(self.plotter)
 
     # In setup_overlay method - Add text field for file loading
     def setup_overlay(self):
@@ -273,10 +71,6 @@ class MainWindow(QMainWindow):
         self.overlay_container = QWidget(self.main_widget)
         self.overlay_container.setGeometry(0, 0, 480, 500)
         
-        # Create info panel
-        # self.info_panel = InfoPanel(self.overlay_container)
-        # self.info_panel.setGeometry(10, 10, 350, 350)
-
         # Add text field for file loading
         self.file_label = QLabel("Load From File:", self.overlay_container)
         self.file_label.setGeometry(10, 450, 100, 25)
@@ -298,7 +92,6 @@ class MainWindow(QMainWindow):
         
         # Setup sliders
         self.setup_sliders()
-        
         # Setup buttons
         self.setup_buttons()
 
@@ -363,13 +156,14 @@ class MainWindow(QMainWindow):
     def setup_right_overlay(self):
         """Setup the right side overlay container and its components"""
         self.right_overlay_container = QWidget(self.main_widget)
-        # Position relative to the current window width
+        # Position relative to the current window width with increased height
         overlay_width = 380
-        self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 400)
+        overlay_height = 500  # Increased from 400 to 500
+        self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, overlay_height)
         
         # Create info panel
         self.right_info_panel = RightInfoPanel(self.right_overlay_container)
-        self.right_info_panel.setGeometry(20, 10, 340, 340)  # Made this smaller to fit new controls
+        self.right_info_panel.setGeometry(20, 10, 340, 340)  # Size remains the same
         
         # Add dimension controls
         self.dimensions_label = QLabel("Dimensions:", self.right_overlay_container)
@@ -447,7 +241,7 @@ class MainWindow(QMainWindow):
         self.speed_input = QSpinBox(self.right_overlay_container)
         self.speed_input.setGeometry(130, 150, 50, 30)
         self.speed_input.setRange(1, 99999)
-        self.speed_input.setValue(99999)
+        self.speed_input.setValue(100)
         self.speed_input.setStyleSheet("""
             QSpinBox {
                 background-color: white;
@@ -480,6 +274,77 @@ class MainWindow(QMainWindow):
             }
             QDoubleSpinBox:focus {
                 border: 2px solid #b92980;
+            }
+        """)
+        
+        # Add Time Horizon input (NEW)
+        self.time_horizon_label = QLabel("Time Horizon:", self.right_overlay_container)
+        self.time_horizon_label.setGeometry(30, 270, 100, 30)
+        self.time_horizon_label.setStyleSheet("color: white; font-weight: bold;")
+        
+        self.time_horizon_input = QDoubleSpinBox(self.right_overlay_container)
+        self.time_horizon_input.setGeometry(130, 270, 100, 30)
+        self.time_horizon_input.setRange(0.1, 100.0)
+        self.time_horizon_input.setValue(5.0)
+        self.time_horizon_input.setSingleStep(0.5)
+        self.time_horizon_input.setDecimals(1)
+        self.time_horizon_input.setStyleSheet("""
+            QDoubleSpinBox {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QDoubleSpinBox:focus {
+                border: 2px solid #b92980;
+            }
+        """)
+        
+        # Add Number of Simulations input (NEW)
+        self.num_sims_label = QLabel("Number of Simulations:", self.right_overlay_container)
+        self.num_sims_label.setGeometry(30, 310, 150, 30)
+        self.num_sims_label.setStyleSheet("color: white; font-weight: bold;")
+        
+        self.num_sims_input = QSpinBox(self.right_overlay_container)
+        self.num_sims_input.setGeometry(180, 310, 100, 30)
+        self.num_sims_input.setRange(0, 500)
+        self.num_sims_input.setValue(0)
+        self.num_sims_input.setStyleSheet("""
+            QSpinBox {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QSpinBox:focus {
+                border: 2px solid #b92980;
+            }
+        """)
+        
+        # Add Node Level Batching checkbox (NEW)
+        self.node_batching_label = QLabel("Node Level Batching:", self.right_overlay_container)
+        self.node_batching_label.setGeometry(30, 350, 150, 30)
+        self.node_batching_label.setStyleSheet("color: white; font-weight: bold;")
+        
+        self.node_batching_checkbox = QCheckBox(self.right_overlay_container)
+        self.node_batching_checkbox.setGeometry(180, 355, 20, 20)
+        self.node_batching_checkbox.setStyleSheet("""
+            QCheckBox {
+                background-color: transparent;
+            }
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #D477B1;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
             }
         """)
         
@@ -530,9 +395,9 @@ class MainWindow(QMainWindow):
             }
         """)
         
-        # Save config button
+        # Save config button - Move to bottom of extended panel
         self.save_config_button = StyledButton("Save Config", self.right_overlay_container)
-        self.save_config_button.setGeometry(120, 263, 150, 30)
+        self.save_config_button.setGeometry(120, 400, 150, 30)  # Moved down to accommodate new controls
         self.save_config_button.clicked.connect(self.save_config)
         
         # Load config on startup
@@ -554,6 +419,10 @@ class MainWindow(QMainWindow):
             'y_dim': self.y_dim_input.value(),
             'z_dim': self.z_dim_input.value(),
             'speed': self.speed_input.value(),
+            "time_step": self.time_step_input.value(),
+            'time_horizon': self.time_horizon_input.value(),  # Added
+            'num_sims': self.num_sims_input.value(),  # Added
+            'node_batch': self.node_batching_checkbox.isChecked(),  # Added
             'save': self.save_to_file_checkbox.isChecked(),
             'log_file': self.log_file_input.text()
         }
@@ -580,6 +449,11 @@ class MainWindow(QMainWindow):
                 self.y_dim_input.setValue(config.get('y_dim', 1))
                 self.z_dim_input.setValue(config.get('z_dim', 2))
                 self.speed_input.setValue(int(config.get('speed', 100)))
+                self.time_step_input.setValue(float(config.get('time_step', 0.1)))
+                # Load new fields with default values if not present
+                self.time_horizon_input.setValue(float(config.get('time_horizon', 5.0)))
+                self.num_sims_input.setValue(int(config.get('num_sims', 0)))
+                self.node_batching_checkbox.setChecked(bool(config.get('node_batch', False)))
                 self.save_to_file_checkbox.setChecked(bool(config.get('save', False)))
                 self.log_file_input.setText(config.get('log_file', 'boxes.txt'))
                 
@@ -611,8 +485,8 @@ class MainWindow(QMainWindow):
         self.right_overlay_visible = not self.right_overlay_visible
         
         # Delete and recreate the tab with the new position
-        if hasattr(self, 'right_side_tab'):
-            self.right_side_tab.deleteLater()
+        # if hasattr(self, 'right_side_tab'):
+        #     self.right_side_tab.deleteLater()
         
         # Create new tab in the correct position
         self.setup_right_tab()
@@ -629,16 +503,7 @@ class MainWindow(QMainWindow):
         
         self.right_side_tab.show()
 
-    # def load_boxes_clicked(self):
-    #     """Callback for the Load Boxes button"""
-    #     #self.right_info_panel.status_label.setText("Loading boxes...")
-
-    #     self.plotter.clear()
-    #     self.plotter.show_grid(all_edges=True, padding = 1.0)
-
-    #     load_and_plot_boxes(self.plotter, 1, log_file="boxes1.txt")         #Verse-library/demo/traffic_signalB/
-    #     # grid_bounds = [-2400, 300, -1100, 600, 0, 1100]
-    #     # self.plotter.show_grid(bounds=grid_bounds)
+    
 
     # Update resizeEvent to handle right panel resizing
     def resizeEvent(self, event):
@@ -651,7 +516,8 @@ class MainWindow(QMainWindow):
         # Keep right overlay correctly positioned relative to the current window edge
         if hasattr(self, 'right_overlay_container') and self.right_overlay_visible:
             overlay_width = 380
-            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 300)
+            overlay_height = 500
+            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, overlay_height)
         
         # Update right tab position
         if hasattr(self, 'right_side_tab'):
@@ -713,7 +579,6 @@ class MainWindow(QMainWindow):
             marker.setStyleSheet("color: #e74c3c; font-size: 10px;")
             self.red_markers.append(marker)
 
-
     def setup_buttons(self):
         """Setup the control buttons"""
         button_width = 170  # Half the width of the original button
@@ -731,8 +596,6 @@ class MainWindow(QMainWindow):
         """Setup the web view for the visualization with console support"""
         self.web_view = QWebEngineView(self.overlay_container)
         self.web_view.setGeometry(10, 10, 350, 350)
-
-        
         self.web_view.setHtml(self.get_web_content())
 
     def get_web_content(self):
@@ -1050,8 +913,8 @@ class MainWindow(QMainWindow):
         self.overlay_visible = not self.overlay_visible
         
         # Delete and recreate the tab with the new position
-        if hasattr(self, 'side_tab'):
-            self.side_tab.deleteLater()
+        # if hasattr(self, 'side_tab'):
+        #     self.side_tab.deleteLater()
         
         # Create new tab in the correct position
         
@@ -1064,160 +927,21 @@ class MainWindow(QMainWindow):
             self.overlay_container.hide()
         self.side_tab.show()
 
-
-    def run_verse(self,  initial_sets, agent_types, dls, verify ):
-
-        import os
-        script_dir = os.path.realpath(os.path.dirname(__file__))
-        input_code_name = os.path.join(script_dir, "controller_3d.py")
-        car = CarAgent('car1', file_name=input_code_name)
-        car2 = NPCAgent('car2')
-        car3 = NPCAgent('car3')
-        # grid_bounds = [-2400, 300, -1100, 600, 0, 1100]
-        self.plotter.show_grid()
-        self.plotter.show()
-        # combined = pv.PolyData()
-        scenario = Scenario(ScenarioConfig(parallel=False))
-        car.set_initial(
-            initial_state=[[-1, -1001, -1, np.pi/3, np.pi/6, 100], [1, -999, 1, np.pi/3, np.pi/6, 100]],
-            # initial_state=[[-0.1, -1000.1, 0.1, np.pi/3, np.pi/6, 100], [0.1, -999.9, 0.1, np.pi/3, np.pi/6, 100]],
-            # initial_state=[[0, -1000, 0, np.pi/3, np.pi/6, 100], [0, -1000, 0, np.pi/3, np.pi/6, 100]],
-            initial_mode=(AgentMode.COC,   )
-        )
-        car2.set_initial(
-            # initial_state=[[-2000.1, 99.9, 999.9, 0,0, 100], [-1999.9, 100.1, 1000.1, 0,0, 100]],
-            initial_state=[[-2001, 99, 999, 0,0, 100], [-1999, 101, 1001, 0,0, 100]],
-            initial_mode=(AgentMode.COC,   )
-        )
-        car3.set_initial(
-            # initial_state=[[1999.9, -0.1, 999.9, np.pi,0, 100], [2000.1, 0.1, 1000.1, np.pi,0, 100]],
-            initial_state=[[1999, -1, 999, np.pi,0, 100], [2001, 1, 1001, np.pi,0, 100]],
-            initial_mode=(AgentMode.COC,   )
-        )
-        T = 20
-        Tv = 1
-        ts = 0.01
-        # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
-
-        scenario.config.print_level = 0
-        scenario.config.reachability_method = ReachabilityMethod.DRYVR_DISC
-        scenario.add_agent(car)
-        scenario.add_agent(car2)
-        scenario.add_agent(car3)
-        start = time.perf_counter()
-
-        # self.plotter.render_window.GetRenderers().GetFirstRenderer().SetInteractive(False)
-        # self.plotter.interactor.SetInteractorStyle(None)
-        #self.plotter.render_window.SetAbortRender(True)    
-
-        trace = scenario.verify(Tv, ts, self.plotter) # this is the root
-        id = 1+trace.root.id
-        models = [[torch.load(f"./examples/simple/acasxu_crown/nets/ACASXU_run2a_{net + 1}_{tau + 1}_batch_2000.pth") for tau in range(9)] for net in range(5)]
-        norm = float("inf")
-
-        queue = deque()
-        queue.append(trace.root) # queue should only contain ATNs  
-        ### begin looping
-        while len(queue):
-            cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
-            own_state, int_states = get_final_states_verify(cur_node)
-            # in general, for i in range(num_intruders)
-            tau_idx_min, tau_idx_max = [get_tau_idx(own_state[1], int_states[i][0]) for i in range(2)], [get_tau_idx(own_state[0], int_states[i][1]) for i in range(2)] 
-            # print(tau_idx_min, tau_idx_max)
-            modes = set()
-            reachsets = [get_acas_reach(np.array(own_state)[:,1:], np.array(int_states[0])[:,1:]), get_acas_reach(np.array(own_state)[:,1:], np.array(int_states[1])[:,1:])]
-            # print(reachsets)
-            closer_idx = []
-            if reachsets[0][0][1][0]<reachsets[1][0][0][0]: # if int 1 always closer than int 2
-                closer_idx = [0]
-            elif reachsets[1][0][1][0]<reachsets[0][0][0][0]: # if int 2 always closer than int 1
-                closer_idx = [1]
-            else: # in general, find intruder with min dist, use for loop to iterate over all intruders, and add intruders with min dist<max(min dist) in order 
-                closer_idx = [0,1]
-                print('_______\nChecking reachsets of both agents\n________')
-                print([reachsets[0][0][i][0] for i in range(2)], [reachsets[1][0][i][0] for i in range(2)])
-            for idx in closer_idx: # iterate over closest intruder(s) 
-                for reachset in reachsets[idx]: # iterate over reachsets
-                    if len(modes)==5: # if all modes are possible, stop iterating
-                        break 
-                    acas_min, acas_max = reachset
-                    acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
-                    x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
-                    x = (x_l+x_u)/2
-
-                    last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
-                    for tau_idx in range(tau_idx_min[idx], tau_idx_max[idx]+1):
-                        lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
-                        # lirpa_model = BoundedModule(model, (torch.empty_like(x))) 
-                        ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
-                        bounded_x = BoundedTensor(x, ptb=ptb_x)
-                        lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
-
-                        # new_mode = np.argmax(ub.numpy())+1 # will eventually be a list/need to check upper and lower bounds
-                        new_mode = np.argmin(lb.numpy())+1 # will eventually be a list/need to check upper and lower bounds
-                        
-                        new_modes = []
-                        for i in range(len(ub.numpy()[0])):
-                            # upper = ub.numpy()[0][i]
-                            # if upper>=lb.numpy()[0][new_mode-1]:
-                            #     new_modes.append(i+1)
-                            lower = lb.numpy()[0][i]
-                            if lower<=ub.numpy()[0][new_mode-1]:
-                                new_modes.append(i+1)
-                        modes.update(new_modes)
-            
-            # print(modes, cur_node.start_time) # at 15 s, all modes possible -- investigate why
-            for new_m in modes:
-                scenario.set_init(
-                    [[own_state[0][1:], own_state[1][1:]], 
-                    [int_states[0][0][1:], int_states[0][1][1:]],
-                    [int_states[1][0][1:], int_states[1][1][1:]]
-                    ], # this should eventually be a range 
-                    [(AgentMode(new_m),   ),(AgentMode.COC,   ),(AgentMode.COC,   )]
-                )
-                id += 1
-                # new_trace = scenario.simulate(Tv, ts)
-                
-                start_ver = time.perf_counter() 
-                new_trace = scenario.verify(Tv, ts, self.plotter)
-                
-                print(f'Verification time: {time.perf_counter()-start_ver:.2f} s')
-
-                temp_root = new_trace.root
-                new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, id)
-                cur_node.child.append(new_node)
-                print(f'Start time: {new_node.start_time}\nNode ID: {id}\nNew mode: {AgentMode(new_m)}')
-                    
-                if new_node.start_time + Tv>=T: # if the time of the current simulation + start_time is at or above total time, don't add
-                    continue
-                queue.append(new_node)
-
-        trace.nodes = trace._get_all_nodes(trace.root)
-        print(f'Verification time: {time.perf_counter()-start}')
-        # self.plotter.render()
-    
-    
-        
-
     def run_button_clicked(self):
         """Callback for the Run button (normal mode)"""
         self.web_view.page().runJavaScript("getPlanePositions();", 
-                                        lambda positions: self.handle_positions(positions, True))
+                                        lambda positions: self.handle_inputs(positions, True))
 
     def run_simulate_clicked(self):
         """Callback for the Run Simulate button (simulation mode)"""
         self.web_view.page().runJavaScript("getPlanePositions();", 
-                                        lambda positions: self.handle_positions(positions, False))
+                                        lambda positions: self.handle_inputs(positions, False))
 
-
-    def handle_positions(self, positions, verify):
-
+    def handle_inputs(self, positions, verify):
         # Check if file input has content
         file_path = self.file_input.text().strip()
         if file_path:
             # If file specified, load boxes first
-            if hasattr(self, 'thread') and self.thread:
-                self.thread.join()
             self.plotter.clear()
             self.plotter.show_grid(all_edges=True, n_xlabels = 6, n_ylabels = 6, n_zlabels = 6)
             load_and_plot(self.plotter, log_file=file_path)
@@ -1230,12 +954,13 @@ class MainWindow(QMainWindow):
                     x = float(pos['x'].replace('px', ''))
                     y = float(pos['y'].replace('px', ''))
                     s = float(pos['size'].replace('px', ''))
+
                     return ( 6*(x)+48 , 6*(350-y) - 48, s/.3)
                 except (ValueError, KeyError):
                     return (0, 0, 0)
                     
-            z1 = self.blue_slider.value() / 10  # Scale as needed
-            z2 = self.red_slider.value() / 10  # Scale as needed
+            z1 = self.blue_slider.value() / 10 
+            z2 = self.red_slider.value() / 10
             # positions is a JavaScript object containing the current positions of the planes
             print("Positions of planes:", positions)
 
@@ -1246,14 +971,36 @@ class MainWindow(QMainWindow):
             x1, y1, s1 = (position_to_int(self.plane1_position))
             x2, y2, s2 = (position_to_int(self.plane2_position))
 
-            if hasattr(self, 'thread') and self.thread:
-                self.thread.join()
-            self.plotter.clear()
+            if os.path.exists('plotter_config.json'):
+                with open('plotter_config.json', 'r') as f:
+                    config = json.load(f)
+                    x_dim = config['x_dim']
+                    y_dim = config['y_dim']
+                    z_dim = config['z_dim']
+                    time_horizon = config['time_horizon']
+                    time_step = config['time_step']
+                    num_sims = config['num_sims']
+                    save_to_file = config['save']
+                    log_file = config['log_file']
 
-            self.run_verse([[x1, y1, z1, s1], [x2, y2, z2, s2]], ["vehicle", "pedestrian"], ["vehicle_controller.py", "None"], verify )
 
-            # self.thread = threading.Thread(target=self.run_verse, args=[ [[x1, y1, z1, s1], [x2, y2, z2, s2]], ["vehicle", "pedestrian"], ["vehicle_controller.py", "None"], verify ], daemon=True)
-            # self.thread.start()
+            if(verify):
+                num_sims = 0
+            global node_rect_cache
+            global node_idx
+            node_rect_cache ={}
+            node_idx =0
+
+            if save_to_file:
+                with open(log_file, "w") as f:
+                    f.write("")  # Optional: just clears the file
+
+            #for id in agents:
+
+                #self.verse_bridge.updatePlane(x =x1,y =y1, z=z1, radius= s1, pitch=np.pi/3,yaw=np.pi/6, v=100, agent_type="Car" )
+            
+            self.verse_bridge.run_verse(x_dim=x_dim, y_dim=y_dim, z_dim=z_dim, time_horizon=time_horizon, time_step=time_step, num_sims=num_sims )
+            plotRemaining(self.plotter, verify)
 
 
     def _set_python_bridge(self, result):
@@ -1289,20 +1036,3 @@ if __name__ == "__main__":
     main_window.showMaximized()
     
     sys.exit(app.exec())
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
-        
-
-    
