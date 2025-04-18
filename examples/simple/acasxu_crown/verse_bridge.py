@@ -32,15 +32,6 @@ class AgentMode(Enum):
     SL = auto()
     SR = auto()
 
-class TrackMode(Enum):
-    T0 = auto()
-    T1 = auto()
-    T2 = auto()
-    M01 = auto()
-    M12 = auto()
-    M21 = auto()
-    M10 = auto()
-
 
 means_for_scaling = torch.FloatTensor([19791.091, 0.0, 0.0, 650.0, 600.0])
 range_for_scaling = torch.FloatTensor([60261.0, 6.28318530718, 6.28318530718, 1100.0, 1200.0])
@@ -156,17 +147,6 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch
              torch.tensor([d_max, theta_maxs[i], psi_maxs[j], own_set[1][-1], int_set[1][-1]])) for i in range(len(theta_mins)) for j in range(len(psi_mins))]
     
     return sets
-
-def wtp(x: float): 
-    return torch.remainder((x + torch.pi), (2 * torch.pi)) - torch.pi
-
-def get_acas_state_torch(own_state: torch.Tensor, int_state: torch.Tensor) -> torch.Tensor:
-    dist = torch.sqrt((own_state[:,0:1]-int_state[:,0:1])**2+(own_state[:,1:2]-int_state[:,1:2])**2)
-    theta = wtp((2*torch.pi-own_state[:,3:4])+torch.arctan2(int_state[:,1:2], int_state[:,0:1]))
-    # theta = wtp((2*torch.pi-own_state[:,2:3])+torch.arctan(int_state[:,1:2]/int_state[:,0:1]))
-    psi = wtp(int_state[:,3:4]-own_state[:,3:4])
-    # return torch.cat([dist, own_state[:,3:4], psi, own_state[:,3:4], int_state[:,3:4]], dim=1)
-    return torch.cat([dist, theta, psi, own_state[:,5:6], int_state[:,5:6]], dim=1)
 
 def get_final_states_sim(n) -> Tuple[List]: 
     own_state = n.trace['car1'][-1]

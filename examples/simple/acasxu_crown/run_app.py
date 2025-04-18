@@ -1193,8 +1193,8 @@ class MainWindow(QMainWindow):
             traces = []
             for i in range(N):
                 scenario.set_init(
-                    [[[-100, -1000, -1, np.pi/3, np.pi/6, 100], [100, -900, 1, np.pi/3, np.pi/6, 100]],
-                    [[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]]],
+                    [[[-100, -1100, -1, np.pi/3, np.pi/6, 100], [100, -900, 1, np.pi/3, np.pi/6, 100]],
+                    [[-2000, 0, 1000, 0,0, 100], [-2000, 0, 1000, 0,0, 100]]],
                     [(AgentMode.COC,  ), (AgentMode.COC,  )]
                 )
                 trace = scenario.simulate(Tv, ts, self.plotter) # this is the root
