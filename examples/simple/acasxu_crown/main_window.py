@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab,RightInfoPanel
 import pyvistaqt as pvqt
-from verse_bridge import VerseBridge
+# from verse_bridge import VerseBridge
+from verse_bridge_all import VerseBridge
 
 class MainWindow(QMainWindow):
     def __init__(self):

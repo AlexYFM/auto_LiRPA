@@ -1080,7 +1080,7 @@ class MainWindow(QMainWindow):
             
             int_modes = set()
             int_reachsets = get_acas_reach(np.array(int_state)[:,1:], np.array(own_state)[:,1:])
-            tau_idx_min_int, tau_idx_max_int = get_tau_idx(int_state[1], own_state[0]), get_tau_idx(int_state[0], own_state[1]) 
+            tau_idx_min_int, tau_idx_max_int = get_tau_idx(int_state[1][1:], own_state[0][1:]), get_tau_idx(int_state[0][1:], own_state[1][1:]) 
             # print(reachsets)
             for reachset in int_reachsets:
                 if len(int_modes)==5: # if all modes are possible, stop iterating

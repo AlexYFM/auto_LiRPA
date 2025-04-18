@@ -215,7 +215,7 @@ if __name__ == "__main__":
         initial_state=[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]],
         initial_mode=(AgentMode.COC, )
     )
-    T = 20
+    T = 10
     Tv = 1
     ts = 0.01
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
@@ -236,8 +236,7 @@ if __name__ == "__main__":
     while len(queue):
         cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
         own_state, int_state = get_final_states_verify(cur_node)
-        tau_idx_min, tau_idx_max = get_tau_idx(own_state[1], int_state[0]), get_tau_idx(own_state[0], int_state[1]) 
-        # print(tau_idx_min, tau_idx_max)
+        tau_idx_min, tau_idx_max = get_tau_idx(own_state[1][1:], int_state[0][1:]), get_tau_idx(own_state[0][1:], int_state[1][1:]) 
         
         ### make below a function when I have time, will eventually need to do pairwise comparisons between all agents 
         modes = set()
@@ -274,7 +273,9 @@ if __name__ == "__main__":
         
         int_modes = set()
         int_reachsets = get_acas_reach(np.array(int_state)[:,1:], np.array(own_state)[:,1:])
-        tau_idx_min_int, tau_idx_max_int = get_tau_idx(int_state[1], own_state[0]), get_tau_idx(int_state[0], own_state[1]) 
+        tau_idx_min_int, tau_idx_max_int = get_tau_idx(int_state[1][1:], own_state[0][1:]), get_tau_idx(int_state[0][1:], own_state[1][1:]) 
+        print('Tau own:',tau_idx_min, tau_idx_max)
+        print('Tau int:',tau_idx_min_int, tau_idx_max_int)
         # print(reachsets)
         for reachset in int_reachsets:
             if len(int_modes)==5: # if all modes are possible, stop iterating

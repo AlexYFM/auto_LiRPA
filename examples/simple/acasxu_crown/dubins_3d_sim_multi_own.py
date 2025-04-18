@@ -86,7 +86,7 @@ if __name__ == "__main__":
     T = 20
     Tv = 1
     ts = 0.01
-    N = 100
+    N = 1
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
 
     scenario.config.print_level = 0
@@ -148,7 +148,7 @@ if __name__ == "__main__":
             # print(f'Int advisory scores: {ads_2}')
             # print(f'Int advisory score using same net as own: {models[last_cmd-1][tau_idx](acas_state_2.view(1,5)).detach().numpy()}')
             new_mode_2 = np.argmin(ads_2[0])+1 # will eventually be a list
-
+            # print(tau_idx, tau_idx_2)
             # print(f'\n_______________\nLast Command: {last_cmd}, Tau Index: {tau_idx}\n Last Command Int: {last_cmd_2}, Tau Index Int: {tau_idx_2}')
             scenario.set_init(
                 [[own_state[1:], own_state[1:]], [int_state[1:], int_state[1:]]], # this should eventually be a range 
