@@ -5,20 +5,18 @@ import numpy as np
 import os
 import json
 import pyvistaqt as pvqt
-import ast
-import re
-
+import time
 from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab, RightOverlay
 
 
 from PyQt6.QtCore import Qt, QObject, pyqtSlot, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, 
-    QSizePolicy, QLabel, QLineEdit, QTextEdit,
+    QSizePolicy, QLabel, QLineEdit, QTextEdit,QComboBox
 )
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab,RightInfoPanel
+from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab
 import pyvistaqt as pvqt
 
 from PyQt6.QtWebChannel import QWebChannel
@@ -90,6 +88,8 @@ class MainWindow(QMainWindow):
         
         self.side_tab.raise_()
         self.right_side_tab.raise_()
+
+        self.verse_worker = None
         
     def setup_main_ui(self):
         """Setup the main UI components"""
@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
     def setup_overlay(self):
         """Setup the overlay container and its components"""
         self.overlay_container = QWidget(self.main_widget)
-        self.overlay_container.setGeometry(0, 0, 480, 500)
+        self.overlay_container.setGeometry(0, 0, 480, 600)
         self.overlay_container.setStyleSheet("background-color: #b7b7b7; border: 2px solid #616161; opacity: 0.8")
 
 
@@ -150,6 +150,61 @@ class MainWindow(QMainWindow):
             }
         """)
         self.initial_set_input.textChanged.connect(self.update_initial_set)
+
+        self.agent_type_label = QLabel("Agent Type:", self.overlay_container)
+        self.agent_type_label.setGeometry(10, 510, 100, 25)
+        self.agent_type_label.setStyleSheet("color: black; font-weight: bold; border:0px")
+        
+        self.agent_type_dropdown = QComboBox(self.overlay_container)
+        self.agent_type_dropdown.setGeometry(110, 510, 240, 25)
+        self.agent_type_dropdown.addItems(["Car", "NPC"])
+        self.agent_type_dropdown.setStyleSheet("""
+            QComboBox {
+                background-color: white;
+                border: 1px solid #3498db;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QComboBox:focus {
+                border: 2px solid #2980b9;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: right;
+                width: 20px;
+                border-left: 1px solid #3498db;
+            }
+        """)
+        self.agent_type_dropdown.currentTextChanged.connect(self.update_agent_type)
+        
+        # Add dropdown for decision logic
+        self.decision_logic_label = QLabel("Decision Logic:", self.overlay_container)
+        self.decision_logic_label.setGeometry(10, 540, 100, 25)
+        self.decision_logic_label.setStyleSheet("color: black; font-weight: bold; border:0px")
+        
+        self.decision_logic_dropdown = QComboBox(self.overlay_container)
+        self.decision_logic_dropdown.setGeometry(110, 540, 240, 25)
+        self.decision_logic_dropdown.addItems([
+            "controller_3d.py", "None"
+        ])
+        self.decision_logic_dropdown.setStyleSheet("""
+            QComboBox {
+                background-color: white;
+                border: 1px solid #3498db;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QComboBox:focus {
+                border: 2px solid #2980b9;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: right;
+                width: 20px;
+                border-left: 1px solid #3498db;
+            }
+        """)
+        self.decision_logic_dropdown.currentTextChanged.connect(self.update_decision_logic)
         
         # Setup an empty slider container - will add sliders dynamically when plane is selected
         self.setup_sliders()
@@ -177,6 +232,18 @@ class MainWindow(QMainWindow):
             self.agents[self.active_agent_id]['init_set'] =  initial_set
             # Call the bridge method to update the initial set
             self.update_status(f"Updated initial set for {self.active_agent_id}: {initial_set}")
+
+    def update_agent_type(self, agent_type):
+        """Update the agent type for the currently selected agent"""
+        if self.active_agent_id and self.active_agent_id in self.agents:
+            self.agents[self.active_agent_id]['agent_type'] = agent_type
+            self.update_status(f"Updated agent type for {self.active_agent_id}: {agent_type}")
+
+    def update_decision_logic(self, decision_logic):
+        """Update the decision logic for the currently selected agent"""
+        if self.active_agent_id and self.active_agent_id in self.agents:
+            self.agents[self.active_agent_id]['dl'] = decision_logic
+            self.update_status(f"Updated decision logic for {self.active_agent_id}: {decision_logic}")
 
     def create_slider_for_agent(self, agent_id):
         """Create a slider for the specified agent"""
@@ -209,7 +276,6 @@ class MainWindow(QMainWindow):
 
     def update_agent_altitude(self, agent_id, value):
         """Update the altitude value for an agent"""
-        #print(300- 3*value-15)
         if agent_id in self.agents:
             self.agents[agent_id]['altitude'] = value
             # Update any necessary visuals or data
@@ -310,6 +376,10 @@ class MainWindow(QMainWindow):
         self.remove_plane_button.setGeometry(10 + button_width + 10, 400, button_width, 30)
         self.remove_plane_button.clicked.connect(self.remove_plane)
 
+        self.stop_button = StyledButton("Stop", self.overlay_container, color='red')
+        self.stop_button.setGeometry(120, 570, 170, 30)  # Adjusted y-position        
+        self.stop_button.clicked.connect(self.stop)
+
     def setup_web_view(self):
         """Setup the web view for the visualization with console support"""
         self.web_view = QWebEngineView(self.overlay_container)
@@ -370,7 +440,9 @@ class MainWindow(QMainWindow):
             'altitude': 50,
             'size': 20,
             'yaw':0,
-            'init_set': '' 
+            'init_set': '',
+            'agent_type': 'Car', 
+            'dl': 'controller_3d.py'  
         }
         
         js_code = f"""
@@ -472,11 +544,19 @@ class MainWindow(QMainWindow):
             self.initial_set_input.setText(init_set)
             
             self.update_status(f"Selected plane: {plane_id}")
+
+            # Update agent type dropdown
+            agent_type = self.agents[plane_id].get('agent_type', 'Car')
+            index = self.agent_type_dropdown.findText(agent_type)
+            if index >= 0:
+                self.agent_type_dropdown.setCurrentIndex(index)
+            
+            # Update decision logic dropdown
+            decision_logic = self.agents[plane_id].get('dl', 'controller_3d.py')
+            index = self.decision_logic_dropdown.findText(decision_logic)
+            if index >= 0:
+                self.decision_logic_dropdown.setCurrentIndex(index)
                 
-                # Display agent information in the right panel
-                # altitude = self.agents[plane_id].get('altitude', 50)
-                # x_pos = self.agents[plane_id].get('x', 0)
-                # y_pos = self.agents[plane_id].get('y', 0)
             
     def save_plane_positions(self, positions):
         """Save the plane positions from JavaScript to the agents dictionary."""
@@ -497,7 +577,7 @@ class MainWindow(QMainWindow):
                 self.agents[plane_id].update({
                     'x': 6*(x_px)+48,
                     'y': 6*(350-y_px) - 48,
-                    'size': size_px,
+                    'size': size_px/2,
                     'yaw': rotation,
                 })
                 
@@ -524,7 +604,7 @@ class MainWindow(QMainWindow):
             
             @pyqtSlot(str)
             def planeSelected(self, plane_id):
-                print("planeSelected called with:", plane_id)  # Add debug print
+                #print("planeSelected called with:", plane_id)  # Add debug print
                 self.parent().on_plane_selected(plane_id)
         self.js_bridge = Bridge()
         self.js_bridge.setParent(self)
@@ -577,12 +657,24 @@ class MainWindow(QMainWindow):
         """Callback for the Run button (normal mode)"""
         # self.web_view.page().runJavaScript("getPlanePositions();", 
         #                                 lambda positions: self.handle_inputs(positions, True))
+        self.stop()
+        self.plotter.clear()
+
         self.handle_inputs(True)
 
     def run_simulate_clicked(self):
         """Callback for the Run Simulate button (simulation mode)"""
+        self.stop()
+        self.plotter.clear()
+
         self.handle_inputs(False)
 
+    def stop(self):
+        if(self.verse_worker):
+            self.verse_worker.terminate()
+            self.verse_worker.wait()
+        self.plotter.clear()
+        self.update_status("Stopped Verse")
 
 
     def handle_inputs(self, verify):
@@ -590,7 +682,6 @@ class MainWindow(QMainWindow):
         file_path = self.file_input.text().strip()
         if file_path:
             # If file specified, load boxes first
-            self.plotter.clear()
             self.plotter.show_grid(all_edges=True, n_xlabels = 6, n_ylabels = 6, n_zlabels = 6)
             load_and_plot(self.plotter, log_file=file_path)
             #grid_bounds = [-2400, 300, -1100, 600, 0, 1100]
@@ -622,9 +713,9 @@ class MainWindow(QMainWindow):
 
             for id in self.agents:
                 d = self.agents[id]
-                print(d)
                 if(d['init_set'] == ''):
-                    self.verse_bridge.updatePlane( id= id, x =d['x'],y =d['y'], z=d['altitude'], radius= d['size'], pitch=np.pi/3,yaw=d['yaw'], v=100, agent_type="Car", dl ="controller_3d.py")
+                    print(d['altitude'])
+                    self.verse_bridge.updatePlane( id= id, x =d['x'],y =d['y'], z= 300 - 3*d['altitude']-10, radius= d['size'], pitch=0,yaw=d['yaw'], v=100, agent_type=d["agent_type"], dl = (None if d["dl"] == "None" else d["dl"]) )
                 else:
 
                     initial_set_str = d['init_set']
@@ -647,20 +738,17 @@ class MainWindow(QMainWindow):
                         for elem in elements:
                             elem = elem.strip()
                             if elem:
-                                print(elem)
                                 # Use eval with numpy context
                                 value = eval(elem, {"np": np})
                                 parsed_row.append(value)
                         result.append(parsed_row)
-                    self.verse_bridge.updatePlane( id= id, agent_type="Car", dl ="controller_3d.py")
-                    self.verse_bridge.addInitialSet(self.active_agent_id, result)
 
+                    self.verse_bridge.updatePlane( id= id, agent_type=d["agent_type"], dl = (None if d["dl"] == "None" else d["dl"]) )
+                    self.verse_bridge.addInitialSet(id, result)
 
-            #self.verse_bridge.run_verse(x_dim=x_dim, y_dim=y_dim, z_dim=z_dim, time_horizon=time_horizon, time_step=time_step, num_sims=num_sims, verify=verify)
+            self.plotter.clear()
             self.run_in_thread( x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify)
-            #plotRemaining(self.plotter, verify)
 
-            #self.update_status("Finished Running Verse")
 
     def run_in_thread(self, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify):
         # Disable UI elements if needed
@@ -686,6 +774,7 @@ class MainWindow(QMainWindow):
         
         # Clean up
         self.verse_worker.deleteLater()
+        self.verse_worker = None
 
 
         # def _set_python_bridge(self, result):

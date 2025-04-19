@@ -198,27 +198,29 @@ class SvgPlaneSlider(QSlider):
 
 class StyledButton(QPushButton):
     """Custom styled button with modern look"""
-    def __init__(self, text, parent=None):
+    def __init__(self, text, parent=None, color='#3498db'):
         super().__init__(text, parent)
-        self.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
+        self.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {color};
                 color: white;
                 border: none;
                 padding: 8px 16px;
                 border-radius: 4px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: #2980b9;
-            }
-            QPushButton:pressed {
+            }}
+            QPushButton:pressed {{
                 background-color: #2472a4;
-            }
-            QPushButton:disabled {
+            }}
+            QPushButton:disabled {{
                 background-color: #bdc3c7;
-            }
-        """)
+            }}
+            """
+        )
 
 class InfoPanel(QFrame):
     """Information panel with modern styling"""

@@ -227,7 +227,6 @@ class VerseBridge():
     def updatePlane(self, id="", agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
 
         init_set = [[x - radius ,y -radius,z-radius,pitch, yaw, v  ],[x + radius ,y + radius,z+radius, pitch, yaw, v]]
-        print(init_set)
 
         self.agents[id] = {"init_set":init_set, 
                            "init_mode": self.mode_dict[agent_type], 
@@ -381,7 +380,7 @@ class VerseBridge():
             print(f'Verification time: {time.perf_counter()-start}')
 
         else:
-            N = 10
+            N = num_sims
             for __ in range(N):
                 for id, val in self.agents.items():
                     init_mode = val["init_mode"]
