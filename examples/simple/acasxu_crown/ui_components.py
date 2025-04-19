@@ -1,13 +1,12 @@
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QWidget, 
-    QPushButton, QSizePolicy, QStackedLayout, QSlider,
-    QLabel, QFrame
+from PyQt6.QtWidgets import (QVBoxLayout, QWidget, 
+    QPushButton, QSlider,
+    QLabel, QFrame,QSpinBox,QCheckBox, QStyleOptionSlider, QStyle, QDoubleSpinBox, QLineEdit
 )
-from PyQt6.QtWidgets import QStyleOptionSlider, QStyle, QComboBox, QDoubleSpinBox
-
-from PyQt6.QtGui import QPainter, QPixmap, QColor, QPalette, QFont, QPen, QPainterPath
+from PyQt6.QtGui import QPainter, QColor, QPen, QPainterPath
 from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtSvg import QSvgRenderer
+import os
+import json
 class OverlayTab(QFrame):
     """Side tab for showing/hiding overlay with rounded corners and smaller size"""
     def __init__(self, parent=None):
@@ -291,3 +290,188 @@ class RightInfoPanel(QFrame):
         layout.addWidget(title)
         
         layout.addStretch()
+
+
+
+class RightOverlay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        # Set up dimensions
+        overlay_width = 380
+        overlay_height = 500  # Increased height
+        self.setGeometry(parent.width() - overlay_width, 0, overlay_width, overlay_height)
+        
+        # Initialize components
+        self.setup_ui()
+        
+        # Load config on startup
+        self.load_config()
+        
+        self.visible = True
+
+    def setup_ui(self):
+        """Create and arrange the widgets inside the overlay"""
+        # Info Panel
+        self.right_info_panel = RightInfoPanel(self)
+        self.right_info_panel.setGeometry(20, 10, 340, 450)
+
+        # Labels and Inputs
+        self.dimensions_label = self.create_label("Dimensions:", 30, 110, bold=True)
+        
+        self.x_dim_label = self.create_label("X:", 110, 110)
+        self.x_dim_input = self.create_spinbox(130, 110, 0, 10, 0)
+        
+        self.y_dim_label = self.create_label("Y:", 190, 110)
+        self.y_dim_input = self.create_spinbox(210, 110, 0, 9999, 1)
+        
+        self.z_dim_label = self.create_label("Z:", 270, 110)
+        self.z_dim_input = self.create_spinbox(290, 110, 0, 9999, 2)
+
+        self.speed_label = self.create_label("Plot Speed:", 30, 150, bold=True)
+        self.speed_input = self.create_spinbox(130, 150, 1, 99999, 100)
+
+        self.time_step_label = self.create_label("Time Step:", 30, 70, bold=True)
+        self.time_step_input = self.create_doublespinbox(130, 70, 0.01, 10.0, 0.1, 0.1, 2)
+
+        self.time_horizon_label = self.create_label("Time Horizon:", 30, 270, bold=True)
+        self.time_horizon_input = self.create_doublespinbox(130, 270, 0.1, 100.0, 5.0, 0.5, 1)
+
+        self.num_sims_label = self.create_label("Number of Simulations:", 30, 310, bold=True)
+        self.num_sims_input = self.create_spinbox(180, 310, 0, 500, 0)
+
+        self.node_batching_label = self.create_label("Node Level Batching:", 30, 350, bold=True)
+        self.node_batching_checkbox = self.create_checkbox(180, 355)
+
+        self.save_to_file_label = self.create_label("Save to File:", 30, 180, bold=True)
+        self.save_to_file_checkbox = self.create_checkbox(130, 185)
+
+        self.log_file_label = self.create_label("Log File:", 30, 225, bold=True)
+        self.log_file_input = self.create_lineedit(130, 225, "boxes.txt")
+
+        self.save_config_button = StyledButton("Save Config", self)
+        self.save_config_button.setGeometry(120, 400, 150, 30)
+        self.save_config_button.clicked.connect(self.save_config)
+
+    def create_label(self, text, x, y, bold=False):
+        label = QLabel(text, self)
+        label.setGeometry(x, y, 150, 30)
+        style = "color: white;" + (" font-weight: bold;" if bold else "")
+        label.setStyleSheet(style)
+        return label
+
+    def create_spinbox(self, x, y, min_val, max_val, default_val):
+        spinbox = QSpinBox(self)
+        spinbox.setGeometry(x, y, 50, 30)
+        spinbox.setRange(min_val, max_val)
+        spinbox.setValue(default_val)
+        spinbox.setStyleSheet(self.spinbox_style())
+        return spinbox
+
+    def create_doublespinbox(self, x, y, min_val, max_val, default_val, step, decimals):
+        doublespinbox = QDoubleSpinBox(self)
+        doublespinbox.setGeometry(x, y, 100, 30)
+        doublespinbox.setRange(min_val, max_val)
+        doublespinbox.setValue(default_val)
+        doublespinbox.setSingleStep(step)
+        doublespinbox.setDecimals(decimals)
+        doublespinbox.setStyleSheet(self.spinbox_style())
+        return doublespinbox
+
+    def create_lineedit(self, x, y, default_text):
+        lineedit = QLineEdit(self)
+        lineedit.setGeometry(x, y, 160, 30)
+        lineedit.setText(default_text)
+        lineedit.setStyleSheet(self.lineedit_style())
+        return lineedit
+
+    def create_checkbox(self, x, y):
+        checkbox = QCheckBox(self)
+        checkbox.setGeometry(x, y, 20, 20)
+        checkbox.setStyleSheet(self.checkbox_style())
+        return checkbox
+
+    def spinbox_style(self):
+        return """
+            QSpinBox, QDoubleSpinBox {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QSpinBox:focus, QDoubleSpinBox:focus {
+                border: 2px solid #b92980;
+            }
+        """
+
+    def lineedit_style(self):
+        return """
+            QLineEdit {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #b92980;
+            }
+        """
+
+    def checkbox_style(self):
+        return """
+            QCheckBox {
+                background-color: transparent;
+            }
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: white;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #D477B1;
+                border: 1px solid #D477B1;
+                border-radius: 4px;
+            }
+        """
+
+    def load_config(self):
+        """Load configuration from a JSON file if it exists"""
+        if os.path.exists('plotter_config.json'):
+            with open('plotter_config.json', 'r') as f:
+                config = json.load(f)
+                
+            # Update UI elements with loaded values
+            self.x_dim_input.setValue(config.get('x_dim', 0))
+            self.y_dim_input.setValue(config.get('y_dim', 1))
+            self.z_dim_input.setValue(config.get('z_dim', 2))
+            self.speed_input.setValue(int(config.get('speed', 100)))
+            self.time_step_input.setValue(float(config.get('time_step', 0.1)))
+            # Load new fields with default values if not present
+            self.time_horizon_input.setValue(float(config.get('time_horizon', 5.0)))
+            self.num_sims_input.setValue(int(config.get('num_sims', 0)))
+            self.node_batching_checkbox.setChecked(bool(config.get('node_batch', False)))
+            self.save_to_file_checkbox.setChecked(bool(config.get('save', False)))
+            self.log_file_input.setText(config.get('log_file', 'boxes.txt'))
+
+
+    def save_config(self):
+            """Save the current configuration to a JSON file"""
+            config = {
+                'x_dim': self.x_dim_input.value(),
+                'y_dim': self.y_dim_input.value(),
+                'z_dim': self.z_dim_input.value(),
+                'speed': self.speed_input.value(),
+                "time_step": self.time_step_input.value(),
+                'time_horizon': self.time_horizon_input.value(),
+                'num_sims': self.num_sims_input.value(),
+                'node_batch': self.node_batching_checkbox.isChecked(),
+                'save': self.save_to_file_checkbox.isChecked(),
+                'log_file': self.log_file_input.text()
+            }
+            with open('plotter_config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+           

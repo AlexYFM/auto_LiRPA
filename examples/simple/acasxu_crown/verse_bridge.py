@@ -195,8 +195,6 @@ class VerseBridge():
         self.mode_dict = {"Car": AgentMode.COC, "NPC": AgentMode.COC}
         self.plotter = ax
 
-
-
         #Can hardcode like this:
 
         self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
@@ -209,10 +207,9 @@ class VerseBridge():
         self.addInitialSet("car3",[[1999, -1, 999, np.pi,0, 100], [2001, 1, 1001, np.pi,0, 100]])
 
     #uses input from from GUI
-    def updatePlane(self, id="", agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
+    def updatePlane(self, id="", verify=True, agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
 
         init_set = [[x - radius ,y -radius,z-radius,pitch, yaw, v  ],[x + radius ,y + radius,z+radius, pitch, yaw, v]]
-
         self.agents[id] = {"init_set":init_set, 
                            "init_mode": self.mode_dict[agent_type], 
                            "agent_type": self.agent_dict[agent_type],

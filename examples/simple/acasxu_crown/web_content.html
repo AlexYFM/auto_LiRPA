@@ -1,0 +1,728 @@
+<html>
+<head>
+    <title>Verse Visualizer</title>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background-color: transparent;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #plane-container {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            width: 350px;
+            height: 350px;
+            background-color: rgba(225, 244, 255, 0.8);
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            z-index: 2;
+            overflow: hidden;
+            pointer-events: none;
+            user-select: none;
+
+        }
+        #plane-container * {
+            pointer-events: auto;
+        }
+
+        .axis {
+            position: absolute;
+            background-color: #3498db;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #x-axis {
+            width: 100%;
+            height: 2px;
+            bottom: 0;
+            left: 0;
+        }
+
+        #y-axis {
+            width: 2px;
+            height: 100%;
+            left: 0;
+            top: 0;
+        }
+
+        .marker {
+            position: absolute;
+            font-size: 12px;
+            color: #3498db;
+            font-weight: bold;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .x-marker {
+            bottom: 5px;
+            transform: translateX(-50%);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .y-marker {
+            left: 5px;
+            transform: translateY(-50%);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        /* Origin marker */
+        .origin-marker {
+            bottom: 5px;
+            left: 5px;
+            pointer-events: none;
+            user-select: none;
+
+        }
+
+        /* Grid lines */
+        .grid-line {
+            position: absolute;
+            background-color: rgba(52, 152, 219, 0.15);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .grid-line-x {
+            width: 100%;
+            height: 1px;
+            pointer-events: none;
+        }
+
+        .grid-line-y {
+            width: 1px;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .draggable {
+            width: 20px;
+            height: 20px;
+            color: white;
+            text-align: center;
+            line-height: 20px;
+            font-weight: bold;
+            border-radius: 10px;
+            position: absolute;
+            cursor: grab;
+            z-index: 2;
+            transition: transform 0.2s;
+            transform-origin: center center;
+        }
+
+        .draggable:hover {
+            transform: scale(1.1);
+        }
+
+        #plane1 {
+            left: 10px;
+            top: 10px;
+        }
+
+        #plane2 {
+            right: 10px;
+            top: 10px;
+        }
+
+        .rotation-handle {
+            position: absolute;
+            cursor: grab;
+            z-index: 3;
+            background-color: #2980b9;
+            border-radius: 50%;
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+        }
+        
+        .rotation-handle:hover {
+            transform: scale(1.2);
+        }
+    </style>
+    <script>
+        let draggedElement = null;
+        let selectedPlane = null;
+        let planesSizes = {};  // Object to store sizes for all planes
+        let rotationHandleActive = false;
+        let rotationOrigin = { x: 0, y: 0 };
+        let initialAngle = 0;
+        let isDragging = false;
+
+        // This function creates a rotation handle for the selected plane
+        function createRotationHandle(plane) {
+            // Remove any existing rotation handle
+            removeRotationHandle();
+
+            const planeSize = planesSizes[plane.id] || 20;
+            const handleSize = 16; // Larger for better visibility
+
+            // Get current rotation or default to 0
+            const currentRotation = plane.style.transform ?
+                parseFloat(plane.style.transform.replace('rotate(', '').replace('rad)', '')) || 0 : 0;
+
+            // Create the rotation handle element (arrow)
+            const handle = document.createElement('div');
+            handle.id = 'rotation-handle';
+            handle.className = 'rotation-handle';
+
+            // Create the arrow SVG
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('width', '100%');
+            svg.setAttribute('height', '100%');
+
+            // Create an arrow path
+            const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            arrow.setAttribute('d', 'M4,12l8-8v5h8v6h-8v5z');
+            arrow.setAttribute('fill', '#FFFFFF');
+            svg.appendChild(arrow);
+            handle.appendChild(svg);
+            arrow.setAttribute('transform', 'rotate(90 12 12)');
+
+            // Position the handle based on current rotation
+            const centerX = parseInt(plane.style.left || 0) + planeSize / 2;
+            const centerY = parseInt(plane.style.top || 0) + planeSize / 2;
+            const radius = 25; // Position handle outside the plane
+
+            // Position at the nose based on current rotation
+            const handleX = centerX + Math.sin(currentRotation) * radius - handleSize / 2;
+            const handleY = centerY - Math.cos(currentRotation) * radius - handleSize / 2;
+
+            // Style the handle as an arrow
+            handle.style.left = handleX + 'px';
+            handle.style.top = handleY + 'px';
+            handle.style.width = handleSize + 'px';
+            handle.style.height = handleSize + 'px';
+            handle.style.transform = `rotate(${currentRotation}rad)`;
+
+            // Add the dashed circle to show rotation path
+            const circle = document.createElement('div');
+            circle.id = 'rotation-circle';
+            circle.style.position = 'absolute';
+            circle.style.left = (centerX - radius) + 'px';
+            circle.style.top = (centerY - radius) + 'px';
+            circle.style.width = (radius * 2) + 'px';
+            circle.style.height = (radius * 2) + 'px';
+            circle.style.borderRadius = '50%';
+            circle.style.border = '1px dashed #2980b9';
+            circle.style.pointerEvents = 'none'; // Make it non-interactive
+            circle.style.zIndex = '2';
+
+            // Store reference to the parent plane
+            handle.dataset.planeId = plane.id;
+
+            // Add event listeners for rotation
+            handle.addEventListener('mousedown', startRotation);
+
+            // Add handle and circle to container
+            const container = document.getElementById('plane-container');
+            container.appendChild(circle);
+            container.appendChild(handle);
+        }
+
+        function startRotation(event) {
+            if (!event.target.closest('#rotation-handle')) return;
+
+            event.stopPropagation();
+            rotationHandleActive = true;
+
+            const handle = document.getElementById('rotation-handle');
+            const planeId = handle.dataset.planeId;
+            const plane = document.getElementById(planeId);
+
+            if (!plane) return;
+
+            const planeSize = planesSizes[planeId] || 20;
+
+            // Calculate center of plane
+            rotationOrigin = {
+                x: parseInt(plane.style.left || 0) + planeSize / 2,
+                y: parseInt(plane.style.top || 0) + planeSize / 2
+            };
+
+            // Calculate initial angle based on handle position
+            const handleRect = handle.getBoundingClientRect();
+            const containerRect = document.getElementById('plane-container').getBoundingClientRect();
+
+            const handleCenterX = handleRect.left - containerRect.left + handleRect.width / 2;
+            const handleCenterY = handleRect.top - containerRect.top + handleRect.height / 2;
+
+            initialAngle = Math.atan2(handleCenterY - rotationOrigin.y, handleCenterX - rotationOrigin.x) + Math.PI / 2;
+
+            // Add event listeners for dragging the handle
+            document.addEventListener('mousemove', handleRotation);
+            document.addEventListener('mouseup', endRotation);
+
+            // Change cursor
+            document.body.style.cursor = 'grabbing';
+        }
+
+        function handleRotation(event) {
+            if (!rotationHandleActive) return;
+
+            const handle = document.getElementById('rotation-handle');
+            if (!handle) return;
+
+            const planeId = handle.dataset.planeId;
+            const plane = document.getElementById(planeId);
+            if (!plane) return;
+
+            const containerRect = document.getElementById('plane-container').getBoundingClientRect();
+            const mouseX = event.clientX - containerRect.left;
+            const mouseY = event.clientY - containerRect.top;
+
+            // Calculate new angle
+            const newAngle = Math.atan2(mouseY - rotationOrigin.y, mouseX - rotationOrigin.x) + Math.PI / 2;
+
+            // Update plane rotation
+            plane.style.transform = `rotate(${newAngle}rad)`;
+
+            // Move handle to follow mouse along the circle path
+            const planeSize = planesSizes[planeId] || 20;
+            const handleSize = 16;
+            const radius = 25;
+
+            const handleX = rotationOrigin.x + Math.sin(newAngle) * radius - handleSize / 2;
+            const handleY = rotationOrigin.y - Math.cos(newAngle) * radius - handleSize / 2;
+
+            handle.style.left = handleX + 'px';
+            handle.style.top = handleY + 'px';
+            handle.style.transform = `rotate(${newAngle}rad)`;
+
+            // Save the yaw value to the Python backend
+            saveYawAngle(planeId, newAngle);
+        }
+
+        function endRotation() {
+            if (!rotationHandleActive) return;
+
+            rotationHandleActive = false;
+            document.body.style.cursor = 'default';
+
+            // Remove the document-level event listeners
+            document.removeEventListener('mousemove', handleRotation);
+            document.removeEventListener('mouseup', endRotation);
+
+            // Save the final position
+            const handle = document.getElementById('rotation-handle');
+            if (handle) {
+                const planeId = handle.dataset.planeId;
+                saveAllPlanePositions();
+            }
+        }
+
+        function removeRotationHandle() {
+            // Remove the rotation handle
+            const existingHandle = document.getElementById('rotation-handle');
+            if (existingHandle) {
+                existingHandle.remove();
+            }
+
+            // Remove the rotation circle
+            const existingCircle = document.getElementById('rotation-circle');
+            if (existingCircle) {
+                existingCircle.remove();
+            }
+        }
+
+        function saveYawAngle(planeId, yawRadians) {
+            if (window.interop && typeof window.interop.saveYawAngle === 'function') {
+                window.interop.saveYawAngle(planeId, yawRadians);
+            }
+        }
+
+        function planeClick(event) {
+            event.stopPropagation();
+
+            // Find the parent element with class "draggable" (the plane div)
+            let planeElement = event.target;
+            while (planeElement && !planeElement.classList.contains('draggable')) {
+                planeElement = planeElement.parentElement;
+            }
+
+            // If we couldn't find a draggable parent, exit
+            if (!planeElement) return;
+
+            // If clicking the same plane, do nothing (we want to keep it selected)
+            if (selectedPlane === planeElement) {
+                return;
+            }
+
+            // Deselect previous plane if any
+            if (selectedPlane) {
+                selectedPlane.style.border = "none";
+                removeRotationHandle();
+            }
+
+            // Select new plane
+            selectedPlane = planeElement;
+            selectedPlane.style.border = "2px dashed black";
+
+            // Create rotation handle for the selected plane
+            createRotationHandle(selectedPlane);
+
+            if (planeElement === draggedElement) {
+                draggedElement = null;
+            }
+
+            // console.log("Selected plane ID:", selectedPlane.id);
+
+            // Notify Python about selection
+            if (window.interop) {
+                console.log("Calling planeSelected with:", selectedPlane.id);
+                window.interop.planeSelected(selectedPlane.id);
+            } else {
+                console.error("Bridge not available!");
+            }
+        }
+
+        function clearSelection(event) {
+            if (event.target.id === "plane-container") {
+                if (selectedPlane) {
+                    selectedPlane.style.border = "none";
+                    selectedPlane = null;
+                    removeRotationHandle();
+                    if (window.interop) {
+                        window.interop.planeSelected("");
+                    } else if (window.pyQtBridge) {
+                        window.pyQtBridge.planeSelected("");
+                    }
+                }
+            }
+        }
+
+        function updateRotationHandlePosition() {
+            if (!selectedPlane) return;
+
+            const handle = document.getElementById('rotation-handle');
+            const circle = document.getElementById('rotation-circle');
+            if (!handle || !circle) return;
+
+            const planeSize = planesSizes[selectedPlane.id] || 20;
+            const handleSize = 16;
+            const radius = 25;
+
+            // Get current rotation
+            let currentRotation = 0;
+            if (selectedPlane.style.transform) {
+                const rotateMatch = selectedPlane.style.transform.match(/rotate\(([-\d.]+)rad\)/);
+                if (rotateMatch && rotateMatch[1]) {
+                    currentRotation = parseFloat(rotateMatch[1]);
+                }
+            }
+
+            // Calculate center of plane
+            const centerX = parseInt(selectedPlane.style.left || 0) + planeSize / 2;
+            const centerY = parseInt(selectedPlane.style.top || 0) + planeSize / 2;
+
+            // Update circle position
+            circle.style.left = (centerX - radius) + 'px';
+            circle.style.top = (centerY - radius) + 'px';
+
+            // Update handle position
+            const handleX = centerX + Math.sin(currentRotation) * radius - handleSize / 2;
+            const handleY = centerY - Math.cos(currentRotation) * radius - handleSize / 2;
+            handle.style.left = handleX + 'px';
+            handle.style.top = handleY + 'px';
+
+            // Update rotation origin for future rotation calculations
+            rotationOrigin = { x: centerX, y: centerY };
+        }
+
+        function dragStart(event) {
+            if (event.target.classList.contains('draggable')) {
+                isDragging = true;
+                draggedElement = event.target;
+                
+                // Capture initial cursor position
+                const rect = document.getElementById('plane-container').getBoundingClientRect();
+                const initialX = event.clientX - rect.left;
+                const initialY = event.clientY - rect.top;
+                
+                // Store the initial offset from the top-left corner of the plane
+                const offsetX = initialX - parseInt(draggedElement.style.left || 0);
+                const offsetY = initialY - parseInt(draggedElement.style.top || 0);
+                
+                // Store these offsets on the element itself
+                draggedElement.dataset.offsetX = offsetX;
+                draggedElement.dataset.offsetY = offsetY;
+                
+                // Select the plane if not already selected
+                if (selectedPlane !== draggedElement) {
+                    if (selectedPlane) {
+                        selectedPlane.style.border = "none";
+                        removeRotationHandle();
+                    }
+                    
+                    selectedPlane = draggedElement;
+                    selectedPlane.style.border = "2px dashed black";
+                    createRotationHandle(selectedPlane);
+                    
+                    if (window.interop) {
+                        console.log("Calling planeSelected with:", selectedPlane.id);
+                        window.interop.planeSelected(selectedPlane.id);
+                    }
+                }
+                
+                document.addEventListener('mousemove', dragMove);
+                document.addEventListener('mouseup', dragEnd);
+                
+                // Prevent default to avoid text selection
+                event.preventDefault();
+            }
+        }
+
+        function dragMove(event) {
+            if (!isDragging || !draggedElement) return;
+            
+            const container = document.getElementById("plane-container");
+            const rect = container.getBoundingClientRect();
+            
+            // Use the stored offset to calculate the new position
+            const offsetX = parseFloat(draggedElement.dataset.offsetX || 0);
+            const offsetY = parseFloat(draggedElement.dataset.offsetY || 0);
+            
+            const newX = event.clientX - rect.left - offsetX;
+            const newY = event.clientY - rect.top - offsetY;
+            
+            // Calculate bounds
+            const planeSize = planesSizes[draggedElement.id] || 20;
+            const maxX = rect.width - planeSize;
+            const maxY = rect.height - planeSize;
+            
+            // Apply bounds
+            draggedElement.style.left = Math.max(0, Math.min(newX, maxX)) + "px";
+            draggedElement.style.top = Math.max(0, Math.min(newY, maxY)) + "px";
+            
+            // Update the rotation handle and circle position if this is the selected plane
+            if (selectedPlane === draggedElement) {
+                updateRotationHandlePosition();
+            }
+            
+            event.preventDefault();
+        }
+
+        function dragEnd(event) {
+            if (isDragging) {
+                isDragging = false;
+                document.removeEventListener('mousemove', dragMove);
+                document.removeEventListener('mouseup', dragEnd);
+                
+                // Save the new positions
+                saveAllPlanePositions();
+                
+            }
+        }
+
+        function dragOver(event) {
+            event.preventDefault();
+        }
+
+        function drop(event) {
+            if (draggedElement) {
+                const container = document.getElementById("plane-container");
+                const rect = container.getBoundingClientRect();
+                const newX = event.clientX - rect.left - draggedElement.offsetWidth / 2;
+                const newY = event.clientY - rect.top - draggedElement.offsetHeight / 2;
+
+                draggedElement.style.left = Math.max(0, Math.min(newX, rect.width - draggedElement.offsetWidth)) + "px";
+                draggedElement.style.top = Math.max(0, Math.min(newY, rect.height - draggedElement.offsetHeight)) + "px";
+                
+                // Update rotation handle if needed
+                saveAllPlanePositions();
+
+                if (selectedPlane === draggedElement) {
+                    updateRotationHandlePosition();
+                }
+                
+                event.preventDefault();
+            }
+        }
+
+        // Modified to include rotation
+        function getAllPlanePositions() {
+            let planes = document.querySelectorAll('.draggable');
+            let positions = {};
+
+            planes.forEach(plane => {
+                // Extract rotation angle from transform property
+                let rotation = 0;
+                if (plane.style.transform) {
+                    const transformValue = plane.style.transform;
+                    const rotateMatch = transformValue.match(/rotate\(([-\d.]+)rad\)/);
+                    if (rotateMatch && rotateMatch[1]) {
+                        rotation = parseFloat(rotateMatch[1]);
+                    }
+                }
+
+                positions[plane.id] = {
+                    x: plane.style.left || "0px",
+                    y: plane.style.top || "0px",
+                    size: (planesSizes[plane.id] || 20) + "px",
+                    rotation: rotation
+                };
+            });
+
+            return positions;
+        }
+
+        function saveAllPlanePositions() {
+            let positions = getAllPlanePositions();
+            console.log("Saving Positions:", positions);
+            if (window.interop && window.interop.savePositions) {
+                window.interop.savePositions(positions);
+            } else if (window.pyQtApp && window.pyQtApp.savePositions) {
+                window.pyQtApp.savePositions(positions);
+            }
+        }
+
+        function handleWheel(event) {
+            if (selectedPlane) {
+                event.preventDefault();
+
+                // Get the current size from planesSizes object or element style
+                let planeId = selectedPlane.id;
+                let planeSize = planesSizes[planeId] || parseInt(selectedPlane.style.width) || 20;
+
+                const delta = event.deltaY > 0 ? -2 : 2;
+                const newSize = Math.max(10, Math.min(50, planeSize + delta));
+
+                // Update size in our tracking object
+                planesSizes[planeId] = newSize;
+
+                // Store current position
+                const currentLeft = parseInt(selectedPlane.style.left || 0);
+                const currentTop = parseInt(selectedPlane.style.top || 0);
+
+                // Calculate center point
+                const centerX = currentLeft + planeSize / 2;
+                const centerY = currentTop + planeSize / 2;
+
+                // Apply new size
+                selectedPlane.style.width = newSize + "px";
+                selectedPlane.style.height = newSize + "px";
+                selectedPlane.style.lineHeight = newSize + "px";
+                selectedPlane.style.borderRadius = (newSize / 2) + "px";
+
+                // Adjust position to maintain center point
+                selectedPlane.style.left = (centerX - newSize / 2) + "px";
+                selectedPlane.style.top = (centerY - newSize / 2) + "px";
+
+                // Update rotation handle position
+
+                // Save the updated positions
+                saveAllPlanePositions();
+            }
+        }
+
+        function initPlanesSizes() {
+            let planes = document.querySelectorAll('.draggable');
+            planes.forEach(plane => {
+                planesSizes[plane.id] = parseInt(plane.style.width) || 20;
+            });
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function () {
+            function initWebChannel() {
+                if (typeof QWebChannel !== 'undefined') {
+                    console.log("QWebChannel class available");
+                    if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                        console.log("qt.webChannelTransport available, creating channel");
+                        new QWebChannel(qt.webChannelTransport, function (channel) {
+                            window.interop = channel.objects.interop;
+                            console.log("Channel established, interop object:", window.interop);
+
+                            // Test the connection
+                            if (window.interop && typeof window.interop.planeSelected === 'function') {
+                                console.log("planeSelected function is available");
+                            } else {
+                                console.error("planeSelected function not found on interop object");
+                            }
+                        });
+                    } else {
+                        console.error("qt.webChannelTransport not available");
+                        setTimeout(initWebChannel, 500); // Try again in 500ms
+                    }
+                } else {
+                    console.error("QWebChannel not defined");
+                }
+            }
+
+            // Start the initialization process
+            initWebChannel();
+
+            const container = document.getElementById('plane-container');
+            if (container) {
+                container.addEventListener('dragover', dragOver);
+                container.addEventListener('drop', drop);
+                container.addEventListener('click', clearSelection);
+                container.addEventListener('wheel', handleWheel);
+                
+                // Add event listeners to all draggable elements
+                document.querySelectorAll('.draggable').forEach(plane => {
+                    plane.addEventListener('mousedown', dragStart);
+                    plane.addEventListener('click', planeClick);
+                });
+                
+                initPlanesSizes();
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <div id="plane-container">
+        <!-- Grid lines for X-axis (horizontal lines) -->
+        <div class="grid-line grid-line-x" style="top: 50px;"></div>
+        <div class="grid-line grid-line-x" style="top: 100px;"></div>
+        <div class="grid-line grid-line-x" style="top: 150px;"></div>
+        <div class="grid-line grid-line-x" style="top: 200px;"></div>
+        <div class="grid-line grid-line-x" style="top: 250px;"></div>
+        <div class="grid-line grid-line-x" style="top: 300px;"></div>
+
+        <!-- Grid lines for Y-axis (vertical lines) -->
+        <div class="grid-line grid-line-y" style="left: 50px;"></div>
+        <div class="grid-line grid-line-y" style="left: 100px;"></div>
+        <div class="grid-line grid-line-y" style="left: 150px;"></div>
+        <div class="grid-line grid-line-y" style="left: 200px;"></div>
+        <div class="grid-line grid-line-y" style="left: 250px;"></div>
+        <div class="grid-line grid-line-y" style="left: 300px;"></div>
+
+        <div id="x-axis" class="axis"></div>
+        <div id="y-axis" class="axis"></div>
+
+        <!-- Origin marker (0,0) -->
+        <div class="marker origin-marker">0</div>
+
+        <!-- X-Axis Markers -->
+        <div class="marker x-marker" style="left: 50px;">300</div>
+        <div class="marker x-marker" style="left: 100px;">600</div>
+        <div class="marker x-marker" style="left: 150px;">900</div>
+        <div class="marker x-marker" style="left: 200px;">1200</div>
+        <div class="marker x-marker" style="left: 250px;">1500</div>
+        <div class="marker x-marker" style="left: 300px;">1800</div>
+
+        <!-- Y-Axis Markers -->
+        <div class="marker y-marker" style="top: 50px;">1800</div>
+        <div class="marker y-marker" style="top: 100px;">1500</div>
+        <div class="marker y-marker" style="top: 150px;">1200</div>
+        <div class="marker y-marker" style="top: 200px;">900</div>
+        <div class="marker y-marker" style="top: 250px;">600</div>
+        <div class="marker y-marker" style="top: 300px;">300</div>
+
+        <!-- Planes will be added dynamically -->
+    </div>
+</body>
+
+</html>

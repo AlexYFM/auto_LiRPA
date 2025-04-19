@@ -4,8 +4,9 @@ import os
 import numpy as np
 from enum import Enum,auto
 from typing import Tuple, List, Dict
-# Define whatever here
+import ast
 
+# Define whatever here
 #=====================================================================================
 
 from dubins_3d_agent import CarAgent, NPCAgent
@@ -216,16 +217,17 @@ class VerseBridge():
         # self.addInitialSet("car2",[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]])
 
 
-        self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
-        self.addInitialSet("car1", [[-100, -100, -1, np.pi, np.pi/6, 100], [100, 100, 1, np.pi, np.pi/6, 100]])
+        # self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
+        # self.addInitialSet("car1", [[-100, -100, -1, np.pi, np.pi/6, 100], [100, 100, 1, np.pi, np.pi/6, 100]])
 
-        self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
-        self.addInitialSet("car2",[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]])
+        # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
+        # self.addInitialSet("car2",[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]])
 
     #uses input from from GUI
     def updatePlane(self, id="", agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
 
         init_set = [[x - radius ,y -radius,z-radius,pitch, yaw, v  ],[x + radius ,y + radius,z+radius, pitch, yaw, v]]
+        print(init_set)
 
         self.agents[id] = {"init_set":init_set, 
                            "init_mode": self.mode_dict[agent_type], 
@@ -234,13 +236,18 @@ class VerseBridge():
          
 
     # To set the initial set directly 
-    def addInitialSet(self, id, initialSet= []):
+    def addInitialSet(self, id, initialSet):
+        
+        if id not in self.agents:
+            self.agents[id] ={}
+        
         self.agents[id]["init_set"] = initialSet
 
 
     # removes plane
     def removePlane(self, id):
-        self.agents.pop(id)
+        if(id in self.agents):
+            self.agents.pop(id)
 
     def run_verse(self, ax= None, time_horizon=80, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0, verify=True):
         scenario = Scenario(ScenarioConfig( parallel=False))
@@ -270,6 +277,7 @@ class VerseBridge():
             scenario.set_init_single(
                 id, init_set, (init_mode,)
             )
+            print(init_set)
 
         self.plotter.clear()
         self.plotter.show_grid()

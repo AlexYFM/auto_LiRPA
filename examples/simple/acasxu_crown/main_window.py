@@ -4,18 +4,53 @@ import sys
 import numpy as np
 import os
 import json
+import pyvistaqt as pvqt
+import ast
+import re
 
-from PyQt6.QtCore import Qt
+from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab, RightOverlay
+
+
+from PyQt6.QtCore import Qt, QObject, pyqtSlot, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, 
-    QSizePolicy, QLabel, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox
+    QSizePolicy, QLabel, QLineEdit, QTextEdit,
 )
+from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab,RightInfoPanel
 import pyvistaqt as pvqt
-# from verse_bridge import VerseBridge
-from verse_bridge_all import VerseBridge
 
+from PyQt6.QtWebChannel import QWebChannel
+
+from verse_bridge_all import VerseBridge
+class VerseWorker(QThread):
+    finished = pyqtSignal()
+    progress = pyqtSignal(int)  # Optional: for progress updates
+
+    def __init__(self, verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify):
+        super().__init__()
+        self.verse_bridge = verse_bridge
+        self.x_dim = x_dim
+        self.y_dim = y_dim
+        self.z_dim = z_dim
+        self.time_horizon = time_horizon
+        self.time_step = time_step
+        self.num_sims = num_sims
+        self.verify = verify
+
+    def run(self):
+        # Run the computation in the thread
+        self.verse_bridge.run_verse(
+            x_dim=self.x_dim, 
+            y_dim=self.y_dim, 
+            z_dim=self.z_dim, 
+            time_horizon=self.time_horizon, 
+            time_step=self.time_step, 
+            num_sims=self.num_sims, 
+            verify=self.verify
+        )
+        self.finished.emit()
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -23,36 +58,39 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
         
         # Initialize variables
-        self.plane1_position = 0
-        self.plane2_position = 0
         self.overlay_visible = True
-        self.right_overlay_visible = True  # Add this line
+        self.right_overlay_visible = True
+        self.active_slider = None
+        # Dictionary to store agent information
+        self.agents = {}
+        self.total_agent_num = 0
+        # Active agent ID (the currently selected plane)
+        self.active_agent_id = None
+        
         # Setup main UI
         self.setup_main_ui()
         # Setup left overlay
+        self.setup_status_text_box()
+
         self.setup_overlay()
         # Setup right overlay
-        self.setup_right_overlay()  # Add this line
+        self.setup_right_overlay()
         # Setup web view
         self.setup_web_view()
         # Setup side tabs
         self.setup_side_tab()
-        self.setup_right_tab()  # Add this line
+        self.setup_right_tab()
         
         # Make sure overlays are visible
         self.overlay_container.raise_()
         self.overlay_container.show()
         
-        self.right_overlay_container.raise_()  # Add this line
-        self.right_overlay_container.show()  # Add this line
+        self.right_overlay_container.raise_()
+        self.right_overlay_container.show()
         
         self.side_tab.raise_()
-        self.right_side_tab.raise_()  # Add this line
+        self.right_side_tab.raise_()
         
-
-        self.agents =[]
-
-
     def setup_main_ui(self):
         """Setup the main UI components"""
         self.main_widget = QWidget()
@@ -64,18 +102,20 @@ class MainWindow(QMainWindow):
         self.plotter = pvqt.QtInteractor()
         self.plotter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout.addWidget(self.plotter.interactor)
-        self.verse_bridge  = VerseBridge(self.plotter)
+        self.verse_bridge = VerseBridge(self.plotter)
 
-    # In setup_overlay method - Add text field for file loading
     def setup_overlay(self):
         """Setup the overlay container and its components"""
         self.overlay_container = QWidget(self.main_widget)
         self.overlay_container.setGeometry(0, 0, 480, 500)
+        self.overlay_container.setStyleSheet("background-color: #b7b7b7; border: 2px solid #616161; opacity: 0.8")
+
+
         
         # Add text field for file loading
         self.file_label = QLabel("Load From File:", self.overlay_container)
         self.file_label.setGeometry(10, 450, 100, 25)
-        self.file_label.setStyleSheet("color: white; font-weight: bold;")
+        self.file_label.setStyleSheet("color: black; font-weight: bold; border:0px")
         
         self.file_input = QLineEdit(self.overlay_container)
         self.file_input.setGeometry(110, 450, 240, 25)
@@ -90,11 +130,89 @@ class MainWindow(QMainWindow):
                 border: 2px solid #2980b9;
             }
         """)
+
+        # Add text field for initial set
+        self.initial_set_label = QLabel("Initial Set:", self.overlay_container)
+        self.initial_set_label.setGeometry(10, 480, 100, 25)
+        self.initial_set_label.setStyleSheet("color: black; font-weight: bold; border:0px")
         
-        # Setup sliders
+        self.initial_set_input = QLineEdit(self.overlay_container)
+        self.initial_set_input.setGeometry(110, 480, 240, 25)
+        self.initial_set_input.setStyleSheet("""
+            QLineEdit {
+                background-color: white;
+                border: 1px solid #3498db;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2980b9;
+            }
+        """)
+        self.initial_set_input.textChanged.connect(self.update_initial_set)
+        
+        # Setup an empty slider container - will add sliders dynamically when plane is selected
         self.setup_sliders()
         # Setup buttons
         self.setup_buttons()
+
+    def setup_sliders(self):
+        """Setup container for altitude sliders with styling"""
+        self.slider_container = QWidget(self.overlay_container)
+        self.slider_container.setGeometry(370, 10, 100, 350)
+        self.slider_container.setStyleSheet("background-color: gray;")
+
+        # Create a label to show "Altitude" text
+        self.altitude_label = QLabel("Altitude", self.slider_container)
+        self.altitude_label.setGeometry(20, 3, 60, 20)
+        self.altitude_label.setStyleSheet("color: black; font-weight: bold; border:0px solid #3498db")
+        
+        # We'll add sliders dynamically when planes are selected
+
+    def update_initial_set(self):
+        """Update the initial set value for the currently selected agent"""
+        if self.active_agent_id and self.active_agent_id in self.agents:
+            initial_set = self.initial_set_input.text().strip()
+ 
+            self.agents[self.active_agent_id]['init_set'] =  initial_set
+            # Call the bridge method to update the initial set
+            self.update_status(f"Updated initial set for {self.active_agent_id}: {initial_set}")
+
+    def create_slider_for_agent(self, agent_id):
+        """Create a slider for the specified agent"""
+        # Remove existing slider if any
+        if self.active_slider is not None:
+            self.active_slider.deleteLater()
+            self.active_slider = None
+        
+        # Get agent information
+        agent = self.agents.get(agent_id)
+        if not agent:
+            return
+        # Create new slider with agent's color
+        color = agent.get('color', '#3498db')  # Default to blue if color not set
+        plane_svg = f"plane_{color.replace('#', '')}.svg"  # Use color in SVG filename
+        
+        self.active_slider = SvgPlaneSlider(plane_svg, self.slider_container)
+        self.active_slider.setGeometry(30, 30, 30, 280)
+        self.active_slider.setValue(agent.get('altitude', 50))
+
+        self.active_slider.valueChanged.connect(lambda value: self.update_agent_altitude(agent_id, value))
+        self.active_slider.show()
+
+    def update_agent_yaw(self, agent_id, yaw_radians):
+        """Update the yaw value for an agent"""
+        if agent_id in self.agents:
+            self.agents[agent_id]['yaw'] = yaw_radians
+            # You might want to update the 3D visualization here
+            #print(f"Updated yaw for {agent_id} to {yaw_radians} radians")
+
+    def update_agent_altitude(self, agent_id, value):
+        """Update the altitude value for an agent"""
+        #print(300- 3*value-15)
+        if agent_id in self.agents:
+            self.agents[agent_id]['altitude'] = value
+            # Update any necessary visuals or data
 
     def setup_side_tab(self):
         """Setup the side tab for showing/hiding overlay"""
@@ -103,6 +221,7 @@ class MainWindow(QMainWindow):
         # Instead of assigning to a 'clicked' attribute, set a callback function
         self.side_tab.on_click_callback = self.toggle_overlay
         self.update_side_tab_position()
+
     def toggle_right_overlay(self):
         """Toggle visibility of the right overlay"""
         self.right_overlay_visible = not self.right_overlay_visible
@@ -118,12 +237,12 @@ class MainWindow(QMainWindow):
         if self.right_overlay_visible:
             # Set position relative to the current window width
             overlay_width = 380
-            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 300)
+            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 500)
             self.right_overlay_container.show()
             self.right_overlay_container.raise_()
         else:
             self.right_overlay_container.hide()
-    
+
         self.right_side_tab.show()
 
     def update_right_tab_position(self):
@@ -143,269 +262,25 @@ class MainWindow(QMainWindow):
         
         # Keep left side tab in position relative to the overlay
         self.update_side_tab_position()
-        
         # Keep right overlay correctly positioned relative to the current window edge
         if hasattr(self, 'right_overlay_container') and self.right_overlay_visible:
             overlay_width = 380
-            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 300)
+            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 500)
         
         # Update right tab position
         if hasattr(self, 'right_side_tab'):
             self.update_right_tab_position()
 
-    # Add to setup_right_overlay - Step size dropdown and time step input
+    def update_side_tab_position(self):
+            """Update the position of the side tab based on overlay visibility"""
+            if self.overlay_visible:
+                self.side_tab.setGeometry(480, 150, 40, 80)
+            else:
+                self.side_tab.setGeometry(0, 150, 40, 80)
+
     def setup_right_overlay(self):
         """Setup the right side overlay container and its components"""
-        self.right_overlay_container = QWidget(self.main_widget)
-        # Position relative to the current window width with increased height
-        overlay_width = 380
-        overlay_height = 500  # Increased from 400 to 500
-        self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, overlay_height)
-        
-        # Create info panel
-        self.right_info_panel = RightInfoPanel(self.right_overlay_container)
-        self.right_info_panel.setGeometry(20, 10, 340, 340)  # Size remains the same
-        
-        # Add dimension controls
-        self.dimensions_label = QLabel("Dimensions:", self.right_overlay_container)
-        self.dimensions_label.setGeometry(30, 110, 80, 30)
-        self.dimensions_label.setStyleSheet("color: white; font-weight: bold;")
-        
-        # X dimension
-        self.x_dim_label = QLabel("X:", self.right_overlay_container)
-        self.x_dim_label.setGeometry(110, 110, 20, 30)
-        self.x_dim_label.setStyleSheet("color: white;")
-        
-        self.x_dim_input = QSpinBox(self.right_overlay_container)
-        self.x_dim_input.setGeometry(130, 110, 50, 30)
-        self.x_dim_input.setRange(0, 10)
-        self.x_dim_input.setValue(0)
-        self.x_dim_input.setStyleSheet("""
-            QSpinBox {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QSpinBox:focus {
-                border: 2px solid #b92980;
-            }
-        """)
-        
-        # Y dimension
-        self.y_dim_label = QLabel("Y:", self.right_overlay_container)
-        self.y_dim_label.setGeometry(190, 110, 20, 30)
-        self.y_dim_label.setStyleSheet("color: white;")
-        
-        self.y_dim_input = QSpinBox(self.right_overlay_container)
-        self.y_dim_input.setGeometry(210, 110, 50, 30)
-        self.y_dim_input.setRange(0, 9999)
-        self.y_dim_input.setValue(1)
-        self.y_dim_input.setStyleSheet("""
-            QSpinBox {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QSpinBox:focus {
-                border: 2px solid #b92980;
-            }
-        """)
-        
-        # Z dimension
-        self.z_dim_label = QLabel("Z:", self.right_overlay_container)
-        self.z_dim_label.setGeometry(270, 110, 20, 30)
-        self.z_dim_label.setStyleSheet("color: white;")
-        
-        self.z_dim_input = QSpinBox(self.right_overlay_container)
-        self.z_dim_input.setGeometry(290, 110, 50, 30)
-        self.z_dim_input.setRange(0, 9999)
-        self.z_dim_input.setValue(2)
-        self.z_dim_input.setStyleSheet("""
-            QSpinBox {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QSpinBox:focus {
-                border: 2px solid #b92980;
-            }
-        """)
-        
-        # Speed control
-        self.speed_label = QLabel("Plot Speed:", self.right_overlay_container)
-        self.speed_label.setGeometry(30, 150, 60, 30)
-        self.speed_label.setStyleSheet("color: white; font-weight: bold;")
-        
-        self.speed_input = QSpinBox(self.right_overlay_container)
-        self.speed_input.setGeometry(130, 150, 50, 30)
-        self.speed_input.setRange(1, 99999)
-        self.speed_input.setValue(100)
-        self.speed_input.setStyleSheet("""
-            QSpinBox {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QSpinBox:focus {
-                border: 2px solid #b92980;
-            }
-        """)
-        
-        # Add time step input field
-        self.time_step_label = QLabel("Time Step:", self.right_overlay_container)
-        self.time_step_label.setGeometry(30, 70, 100, 30)
-        self.time_step_label.setStyleSheet("color: white; font-weight: bold;")
-        
-        self.time_step_input = QDoubleSpinBox(self.right_overlay_container)
-        self.time_step_input.setGeometry(130, 70, 100, 30)
-        self.time_step_input.setRange(0.01, 10.0)
-        self.time_step_input.setValue(0.1)
-        self.time_step_input.setSingleStep(0.1)
-        self.time_step_input.setDecimals(2)
-        self.time_step_input.setStyleSheet("""
-            QDoubleSpinBox {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QDoubleSpinBox:focus {
-                border: 2px solid #b92980;
-            }
-        """)
-        
-        # Add Time Horizon input (NEW)
-        self.time_horizon_label = QLabel("Time Horizon:", self.right_overlay_container)
-        self.time_horizon_label.setGeometry(30, 270, 100, 30)
-        self.time_horizon_label.setStyleSheet("color: white; font-weight: bold;")
-        
-        self.time_horizon_input = QDoubleSpinBox(self.right_overlay_container)
-        self.time_horizon_input.setGeometry(130, 270, 100, 30)
-        self.time_horizon_input.setRange(0.1, 100.0)
-        self.time_horizon_input.setValue(5.0)
-        self.time_horizon_input.setSingleStep(0.5)
-        self.time_horizon_input.setDecimals(1)
-        self.time_horizon_input.setStyleSheet("""
-            QDoubleSpinBox {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QDoubleSpinBox:focus {
-                border: 2px solid #b92980;
-            }
-        """)
-        
-        # Add Number of Simulations input (NEW)
-        self.num_sims_label = QLabel("Number of Simulations:", self.right_overlay_container)
-        self.num_sims_label.setGeometry(30, 310, 150, 30)
-        self.num_sims_label.setStyleSheet("color: white; font-weight: bold;")
-        
-        self.num_sims_input = QSpinBox(self.right_overlay_container)
-        self.num_sims_input.setGeometry(180, 310, 100, 30)
-        self.num_sims_input.setRange(0, 500)
-        self.num_sims_input.setValue(0)
-        self.num_sims_input.setStyleSheet("""
-            QSpinBox {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QSpinBox:focus {
-                border: 2px solid #b92980;
-            }
-        """)
-        
-        # Add Node Level Batching checkbox (NEW)
-        self.node_batching_label = QLabel("Node Level Batching:", self.right_overlay_container)
-        self.node_batching_label.setGeometry(30, 350, 150, 30)
-        self.node_batching_label.setStyleSheet("color: white; font-weight: bold;")
-        
-        self.node_batching_checkbox = QCheckBox(self.right_overlay_container)
-        self.node_batching_checkbox.setGeometry(180, 355, 20, 20)
-        self.node_batching_checkbox.setStyleSheet("""
-            QCheckBox {
-                background-color: transparent;
-            }
-            QCheckBox::indicator {
-                width: 20px;
-                height: 20px;
-            }
-            QCheckBox::indicator:unchecked {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #D477B1;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-            }
-        """)
-        
-        # Save to file checkbox
-        self.save_to_file_label = QLabel("Save to File:", self.right_overlay_container)
-        self.save_to_file_label.setGeometry(30, 180, 100, 30)
-        self.save_to_file_label.setStyleSheet("color: white; font-weight: bold;")
-        
-        self.save_to_file_checkbox = QCheckBox(self.right_overlay_container)
-        self.save_to_file_checkbox.setGeometry(130, 185, 20, 20)
-        self.save_to_file_checkbox.setStyleSheet("""
-            QCheckBox {
-                background-color: transparent;
-            }
-            QCheckBox::indicator {
-                width: 20px;
-                height: 20px;
-            }
-            QCheckBox::indicator:unchecked {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #D477B1;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-            }
-        """)
-        
-        # Log file path
-        self.log_file_label = QLabel("Log File:", self.right_overlay_container)
-        self.log_file_label.setGeometry(30, 225, 100, 30)
-        self.log_file_label.setStyleSheet("color: white; font-weight: bold;")
-        
-        self.log_file_input = QLineEdit(self.right_overlay_container)
-        self.log_file_input.setGeometry(130, 225, 160, 30)
-        self.log_file_input.setText("boxes.txt")
-        self.log_file_input.setStyleSheet("""
-            QLineEdit {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #b92980;
-            }
-        """)
-        
-        # Save config button - Move to bottom of extended panel
-        self.save_config_button = StyledButton("Save Config", self.right_overlay_container)
-        self.save_config_button.setGeometry(120, 400, 150, 30)  # Moved down to accommodate new controls
-        self.save_config_button.clicked.connect(self.save_config)
-        
-        # Load config on startup
-        self.load_config()
-        
-        # Initialize visibility
-        self.right_overlay_visible = True
+        self.right_overlay_container = RightOverlay(self.main_widget)
 
     def setup_right_tab(self):
         """Setup the side tab for showing/hiding right overlay"""
@@ -413,172 +288,6 @@ class MainWindow(QMainWindow):
         self.right_side_tab.on_click_callback = self.toggle_right_overlay
         self.update_right_tab_position()
         self.right_side_tab.raise_()
-    def save_config(self):
-        """Save the current configuration to a JSON file"""
-        config = {
-            'x_dim': self.x_dim_input.value(),
-            'y_dim': self.y_dim_input.value(),
-            'z_dim': self.z_dim_input.value(),
-            'speed': self.speed_input.value(),
-            "time_step": self.time_step_input.value(),
-            'time_horizon': self.time_horizon_input.value(),  # Added
-            'num_sims': self.num_sims_input.value(),  # Added
-            'node_batch': self.node_batching_checkbox.isChecked(),  # Added
-            'save': self.save_to_file_checkbox.isChecked(),
-            'log_file': self.log_file_input.text()
-        }
-        
-        try:
-            with open('plotter_config.json', 'w') as f:
-                json.dump(config, f, indent=4)
-            # Show success message in the right info panel
-            if hasattr(self.right_info_panel, 'status_label'):
-                self.right_info_panel.status_label.setText("Configuration saved successfully!")
-        except Exception as e:
-            if hasattr(self.right_info_panel, 'status_label'):
-                self.right_info_panel.status_label.setText(f"Error saving config: {str(e)}")
-
-    def load_config(self):
-        """Load configuration from a JSON file if it exists"""
-        try:
-            if os.path.exists('plotter_config.json'):
-                with open('plotter_config.json', 'r') as f:
-                    config = json.load(f)
-                    
-                # Update UI elements with loaded values
-                self.x_dim_input.setValue(config.get('x_dim', 0))
-                self.y_dim_input.setValue(config.get('y_dim', 1))
-                self.z_dim_input.setValue(config.get('z_dim', 2))
-                self.speed_input.setValue(int(config.get('speed', 100)))
-                self.time_step_input.setValue(float(config.get('time_step', 0.1)))
-                # Load new fields with default values if not present
-                self.time_horizon_input.setValue(float(config.get('time_horizon', 5.0)))
-                self.num_sims_input.setValue(int(config.get('num_sims', 0)))
-                self.node_batching_checkbox.setChecked(bool(config.get('node_batch', False)))
-                self.save_to_file_checkbox.setChecked(bool(config.get('save', False)))
-                self.log_file_input.setText(config.get('log_file', 'boxes.txt'))
-                
-                if hasattr(self.right_info_panel, 'status_label'):
-                    self.right_info_panel.status_label.setText("Configuration loaded!")
-        except Exception as e:
-            if hasattr(self.right_info_panel, 'status_label'):
-                self.right_info_panel.status_label.setText(f"Error loading config: {str(e)}")
-
-    def update_right_tab_position(self):
-        """Update the position of the right side tab based on overlay visibility"""
-        tab_width = 15
-        if self.right_overlay_visible:
-            # Position the tab next to the visible overlay
-            overlay_width = 380
-            self.right_side_tab.setGeometry(self.width() - overlay_width - tab_width, 150, tab_width, 100)
-        else:
-            # Position the tab at the edge of the screen when overlay is hidden
-            self.right_side_tab.setGeometry(self.width() - tab_width, 150, tab_width, 100)
-
-    # def setup_right_buttons(self):
-    #     """Setup the control buttons for right panel"""
-    #     self.load_boxes_button = StyledButton("Load Boxes", self.right_overlay_container)
-    #     self.load_boxes_button.setGeometry(20, 260, 340, 30)
-    #     self.load_boxes_button.clicked.connect(self.load_boxes_clicked)
-
-    def toggle_right_overlay(self):
-        """Toggle visibility of the right overlay"""
-        self.right_overlay_visible = not self.right_overlay_visible
-        
-        # Delete and recreate the tab with the new position
-        # if hasattr(self, 'right_side_tab'):
-        #     self.right_side_tab.deleteLater()
-        
-        # Create new tab in the correct position
-        self.setup_right_tab()
-        
-        # Show/hide overlay as needed
-        if self.right_overlay_visible:
-            # Set position relative to the current window width
-            overlay_width = 380
-            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 300)
-            self.right_overlay_container.show()
-            self.right_overlay_container.raise_()
-        else:
-            self.right_overlay_container.hide()
-        
-        self.right_side_tab.show()
-
-    
-
-    # Update resizeEvent to handle right panel resizing
-    def resizeEvent(self, event):
-        """Handle window resize events"""
-        super().resizeEvent(event)
-        
-        # Keep left side tab in position relative to the overlay
-        self.update_side_tab_position()
-        
-        # Keep right overlay correctly positioned relative to the current window edge
-        if hasattr(self, 'right_overlay_container') and self.right_overlay_visible:
-            overlay_width = 380
-            overlay_height = 500
-            self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, overlay_height)
-        
-        # Update right tab position
-        if hasattr(self, 'right_side_tab'):
-            self.update_right_tab_position()
-       
-
-    def update_side_tab_position(self):
-        """Update the position of the side tab based on overlay visibility"""
-        if self.overlay_visible:
-
-            self.side_tab.setGeometry(480, 150, 40, 80)
-
-            
-        else:
-            #self.side_tab.setGeometry(0, 150, 40, 80)
-
-            self.side_tab.setGeometry(0, 150, 40, 80)
-
-
-
-    def setup_sliders(self):
-        """Setup the altitude sliders with styling that matches the webview"""
-        self.slider_container = QWidget(self.overlay_container)
-        self.slider_container.setGeometry(370, 10, 100, 350)
-        
-        # Create a label to show "Altitude" text
-        self.altitude_label = QLabel("Altitude", self.slider_container)
-        self.altitude_label.setGeometry(20, 3, 60, 20)
-        self.altitude_label.setStyleSheet("color: #3498db; font-weight: bold;")
-        
-        self.blue_slider = SvgPlaneSlider("plane_blue.svg", self.slider_container)
-        self.blue_slider.setGeometry(5, 30, 30, 280)
-        self.blue_slider.setValue(50)
-
-        self.red_slider = SvgPlaneSlider("plane_red.svg", self.slider_container)
-        self.red_slider.setGeometry(55, 30, 30, 280)
-        self.red_slider.setValue(50)
-            
-
-    def setup_slider_markers(self):
-        """Setup markers for the sliders"""
-        marker_values = [0, 33, 66, 100]
-        
-        # Blue slider markers
-        self.blue_markers = []
-        for value in marker_values:
-            marker = QLabel(f"{value}", self.slider_container)
-            y_pos = 30 + 280 - (280 * value / 100) - 10
-            marker.setGeometry(36, int(y_pos), 30, 20)
-            marker.setStyleSheet("color: #3498db; font-size: 10px;")
-            self.blue_markers.append(marker)
-        
-        # Red slider markers
-        self.red_markers = []
-        for value in marker_values:
-            marker = QLabel(f"{value}", self.slider_container)
-            y_pos = 30 + 280 - (280 * value / 100) - 10
-            marker.setGeometry(86, int(y_pos), 30, 20)
-            marker.setStyleSheet("color: #e74c3c; font-size: 10px;")
-            self.red_markers.append(marker)
 
     def setup_buttons(self):
         """Setup the control buttons"""
@@ -591,334 +300,253 @@ class MainWindow(QMainWindow):
         self.run_simulate_button = StyledButton("Simulate", self.overlay_container)
         self.run_simulate_button.setGeometry(10 + button_width + 10, 365, button_width, 30)  # Position next to first button with a small gap
         self.run_simulate_button.clicked.connect(self.run_simulate_clicked)
-
+        
+        # Add/Remove plane buttons
+        self.add_plane_button = StyledButton("Add Plane", self.overlay_container)
+        self.add_plane_button.setGeometry(10, 400, button_width, 30)
+        self.add_plane_button.clicked.connect(self.add_plane)
+        
+        self.remove_plane_button = StyledButton("Remove Plane", self.overlay_container)
+        self.remove_plane_button.setGeometry(10 + button_width + 10, 400, button_width, 30)
+        self.remove_plane_button.clicked.connect(self.remove_plane)
 
     def setup_web_view(self):
         """Setup the web view for the visualization with console support"""
         self.web_view = QWebEngineView(self.overlay_container)
         self.web_view.setGeometry(10, 10, 350, 350)
         self.web_view.setHtml(self.get_web_content())
+        channel = QWebChannel(self.web_view.page())
+    
+        class Bridge(QObject):
+            @pyqtSlot('QJsonObject')
+            def savePositions(self, positions_json):
+                self.parent().save_plane_positions(positions_json)
+            
+            @pyqtSlot(str)
+            def planeSelected(self, plane_id):
+                #print("Bridge: planeSelected called with:", plane_id)
+                self.parent().on_plane_selected(plane_id)
+            @pyqtSlot(str, float)
+            def saveYawAngle(self, plane_id, yaw_radians):
+                #print(f"Saving yaw angle for {plane_id}: {yaw_radians} radians")
+                self.parent().update_agent_yaw(plane_id, yaw_radians)
+
+            # Add this method to the MainWindow class
+            def update_agent_yaw(self, agent_id, yaw_radians):
+                """Update the yaw value for an agent"""
+                if agent_id in self.agents:
+                    self.agents[agent_id]['yaw'] = yaw_radians
+                    # You might want to update the 3D visualization here
+                    #print(f"Updated yaw for {agent_id} to {yaw_radians} radians")
+            
+        
+        self.js_bridge = Bridge()
+        self.js_bridge.setParent(self)
+        channel.registerObject("interop", self.js_bridge)
+        self.web_view.page().setWebChannel(channel)
+        
+        # Now load the HTML content after the channel is set up
+        self.web_view.setHtml(self.get_web_content())
+        
+        # Configure settings
+        self.web_view.page().settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+        self.web_view.page().settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
+        
+        
+
+    def add_plane(self):
+        """Add a new plane to the visualization"""
+        self.total_agent_num+=1
+        colors = ["#007BFF", "#FF0000", "#00AA00", "#AA00AA", "#AAAA00"]
+        color_idx = (len(self.agents)) % len(colors)
+        color = colors[color_idx]
+        plane_id = f"plane_{color}_{self.total_agent_num}"
+
+        self.agents[plane_id] = {
+            'id': plane_id,
+            'color': color,
+            'x': 10,
+            'y': 10,
+            'altitude': 50,
+            'size': 20,
+            'yaw':0,
+            'init_set': '' 
+        }
+        
+        js_code = f"""
+        (function() {{
+            let container = document.getElementById('plane-container');
+            if (!container) return;
+            
+            let plane = document.createElement('div');
+            plane.id = '{plane_id}';
+            plane.className = 'draggable';
+            plane.setAttribute('draggable', 'true');
+            plane.setAttribute('ondragstart', 'dragStart(event)');
+            
+            let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('width', '100%');
+            svg.setAttribute('height', '100%');
+            svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+            
+            let path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', 'M21,16V14L13,9V3.5A1.5,1.5,0,0,0,11.5,2A1.5,1.5,0,0,0,10,3.5V9L2,14V16L10,13.5V19L8,20.5V22L11.5,21L15,22V20.5L13,19V13.5Z');
+            path.setAttribute('fill', '{color}');
+            
+            svg.appendChild(path);
+            plane.appendChild(svg);
+            
+            plane.style.left = '10px';
+            plane.style.top = '10px';
+            plane.style.width = '20px';
+            plane.style.height = '20px';
+            plane.style.lineHeight = '20px';
+            plane.style.borderRadius = '10px';
+            
+            container.appendChild(plane);
+            
+            // Initialize plane size
+            if (typeof planesSizes !== 'undefined') {{
+                planesSizes['{plane_id}'] = 20;
+            }}
+            
+            // Add event listeners
+            plane.addEventListener('click', planeClick);
+            const children = plane.querySelectorAll('*');
+            children.forEach(child => {{
+                child.addEventListener('click', planeClick);
+            }});
+        }})();
+        """
+        
+        self.web_view.page().runJavaScript(js_code)
+
+    def remove_plane(self):
+        """Remove the selected plane"""
+        if not self.active_agent_id:
+            self.update_status("No plane selected for removal")
+            return
+            
+        # Remove from agents dictionary
+        if self.active_agent_id in self.agents:
+            del self.agents[self.active_agent_id]
+            
+        # Remove from web view
+        js_code = f"""
+        var plane = document.getElementById('{self.active_agent_id}');
+        if (plane) {{
+            plane.parentNode.removeChild(plane);
+            
+            // Clear selection if it was the selected plane
+            if (selectedPlane && selectedPlane.id === '{self.active_agent_id}') {{
+                removeRotationHandle();
+
+                selectedPlane = null;
+            }}
+        }}
+        """
+        self.web_view.page().runJavaScript(js_code)
+        
+        # Remove active slider
+        if self.active_slider:
+            self.active_slider.deleteLater()
+            self.active_slider = None
+            
+        # Clear active agent ID
+        self.update_status(f"Removed {self.active_agent_id}")
+
+        self.verse_bridge.removePlane(self.active_agent_id)
+
+        self.active_agent_id = None
+
+    def on_plane_selected(self, plane_id):
+        """Handle plane selection from JavaScript"""
+        self.active_agent_id = plane_id
+        
+        # Create/update slider for the selected plane
+        if plane_id in self.agents:
+            self.create_slider_for_agent(plane_id)
+
+            init_set = self.agents[plane_id].get('init_set', '')
+            self.initial_set_input.setText(init_set)
+            
+            self.update_status(f"Selected plane: {plane_id}")
+                
+                # Display agent information in the right panel
+                # altitude = self.agents[plane_id].get('altitude', 50)
+                # x_pos = self.agents[plane_id].get('x', 0)
+                # y_pos = self.agents[plane_id].get('y', 0)
+            
+    def save_plane_positions(self, positions):
+        """Save the plane positions from JavaScript to the agents dictionary."""
+
+        for plane_id, position in positions.items():
+            if plane_id in self.agents:
+                # Convert QJsonValue to a real Python dict
+                position_data = position.toVariant()
+                # Now you can safely use .get()
+                x_px = int(position_data.get('x', '0px').replace('px', ''))
+                y_px = int(position_data.get('y', '0px').replace('px', ''))
+                size_px = int(position_data.get('size', '20px').replace('px', ''))
+
+                # Rotation: ensure it's a float
+                rotation = float(position_data.get('rotation', self.agents[plane_id].get('yaw', 0)))
+
+                # Update the agent's data
+                self.agents[plane_id].update({
+                    'x': 6*(x_px)+48,
+                    'y': 6*(350-y_px) - 48,
+                    'size': size_px,
+                    'yaw': rotation,
+                })
+                
+    def on_web_view_loaded(self):
+        """Handle web view load events"""
+
+        self.web_view.page().runJavaScript("""
+            // Don't need to define both interop and pyQtApp
+            // Just define what we'll use after the channel is established
+            console.log("Setting up bridge connections...");
+        """)
+
+        # Enable necessary web settings
+        self.web_view.page().settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+        self.web_view.page().settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
+        
+        # Create and register the web channel
+        channel = QWebChannel(self.web_view.page())
+        
+        class Bridge(QObject):
+            @pyqtSlot(str)
+            def savePositions(self, positions_json):
+                self.parent().save_plane_positions(positions_json)
+            
+            @pyqtSlot(str)
+            def planeSelected(self, plane_id):
+                print("planeSelected called with:", plane_id)  # Add debug print
+                self.parent().on_plane_selected(plane_id)
+        self.js_bridge = Bridge()
+        self.js_bridge.setParent(self)
+        channel.registerObject("interop", self.js_bridge)
+        self.web_view.page().setWebChannel(channel)
 
     def get_web_content(self):
-        """Get the HTML content for the web view"""
-        return """
-        <html>
-            <head>
-                <title>Traffic Signal Visualization</title>
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { 
-                        overflow: hidden;
-                        background-color: transparent;
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    }
-                    #container {
-                        position: absolute;
-                        top: 0px;
-                        left: 0px;
-                        width: 350px;
-                        height: 350px;
-                        background-color: rgba(225, 244, 255, 0.8);
-                        border: 2px solid #3498db;
-                        border-radius: 8px;
-                        z-index: 2;
-                        overflow: hidden;
-                    }
-                    .axis {
-                        position: absolute;
-                        background-color: #3498db;
-                        z-index: 1;
-                    }
-                    #x-axis {
-                        width: 100%;
-                        height: 2px;
-                        bottom: 0;
-                        left: 0;
-                    }
-                    #y-axis {
-                        width: 2px;
-                        height: 100%;
-                        left: 0;
-                        top: 0;
-                    }
-                    .marker {
-                        position: absolute;
-                        font-size: 12px;
-                        color: #3498db;
-                        font-weight: bold;
-                    }
-                    .x-marker {
-                        bottom: 5px;
-                        transform: translateX(-50%);
-                    }
-                    .y-marker {
-                        left: 5px;
-                        transform: translateY(-50%);
-                    }
-                    /* Origin marker */
-                    .origin-marker {
-                        bottom: 5px;
-                        left: 5px;
-                    }
-                    /* Grid lines */
-                    .grid-line {
-                        position: absolute;
-                        background-color: rgba(52, 152, 219, 0.15);
-                        z-index: 0;
-                    }
-                    .grid-line-x {
-                        width: 100%;
-                        height: 1px;
-                    }
-                    .grid-line-y {
-                        width: 1px;
-                        height: 100%;
-                    }
-                    .draggable {
-                        width: 20px;
-                        height: 20px;
-                        color: white;
-                        text-align: center;
-                        line-height: 20px;
-                        font-weight: bold;
-                        border-radius: 10px;
-                        position: absolute;
-                        cursor: grab;
-                        z-index: 2;
-                        transition: transform 0.2s;
-                        transform-origin: center center;
-                    }
-                    .draggable:hover {
-                        transform: scale(1.1);
-                    }
-                    #plane1 { left: 10px; top: 10px; }
-                    #plane2 { right: 10px; top: 10px; }
-                </style>
-                <script>
-                    let draggedElement = null;
-                    let selectedPlane = null;
-                    let initialSize = 20;
-                    let plane1Size = initialSize;
-                    let plane2Size = initialSize;
-                    function dragStart(event) {
-                        draggedElement = event.target;
-                    }
+        """Get the HTML content for the web view with support for dynamic planes"""
+        script_dir = os.path.realpath(os.path.dirname(__file__))
 
-                    function dragOver(event) {
-                        event.preventDefault();
-                    }
-
-                    function drop(event) {
-                        if (draggedElement) {
-                            let container = document.getElementById("container");
-                            let rect = container.getBoundingClientRect();
-
-                            let newX = event.clientX - rect.left - draggedElement.offsetWidth / 2;
-                            let newY = event.clientY - rect.top - draggedElement.offsetHeight / 2;
-
-                            newX = Math.max(0, Math.min(newX, rect.width - draggedElement.offsetWidth));
-                            newY = Math.max(0, Math.min(newY, rect.height - draggedElement.offsetHeight));
-
-                            draggedElement.style.left = newX + "px";
-                            draggedElement.style.top = newY + "px";
-
-                            event.preventDefault();
-                        }
-                    }
-
-                    function planeClick(event) {
-                        event.stopPropagation();
-                        
-                        // Find the parent element with class "draggable" (the plane div)
-                        let planeElement = event.target;
-                        while (planeElement && !planeElement.classList.contains('draggable')) {
-                            planeElement = planeElement.parentElement;
-                        }
-                        
-                        // If we couldn't find a draggable parent, exit
-                        if (!planeElement) return;
-                        
-                        // If clicking the same plane, deselect it
-                        if (selectedPlane === planeElement) {
-                            selectedPlane = null;
-                            planeElement.style.border = "none";
-                            return;
-                        }
-                        
-                        // Deselect previous plane if any
-                        if (selectedPlane) {
-                            selectedPlane.style.border = "none";
-                        }
-                        
-                        // Select new plane
-                        selectedPlane = planeElement;
-                        selectedPlane.style.border = "2px dashed black";
-                        
-                        if (planeElement === draggedElement) {
-                            draggedElement = null;
-                        }
-                        
-                        console.log("Selected plane ID:", selectedPlane.id);
-                    }
-                   
-
-                    // Modified handleWheel function
-                    function handleWheel(event) {
-                        if (selectedPlane) {
-                            event.preventDefault();
-                            // Determine which plane is selected and update its size variable
-                            let planeSize = String(selectedPlane.id) === "plane1" ? plane1Size : plane2Size;
-                            const delta = event.deltaY > 0 ? -2 : 2;
-                            const newSize = Math.max(10, Math.min(50, planeSize + delta));
-                            
-                            // Update the appropriate size variable
-                            if (selectedPlane.id === "plane1") {
-                                plane1Size = newSize;
-
-                            } else {
-                                plane2Size = newSize;
-                            }
-                            
-                            // Store current position
-                            const currentLeft = parseInt(selectedPlane.style.left || 0);
-                            const currentTop = parseInt(selectedPlane.style.top || 0);
-                            
-                            // Calculate center point
-                            const centerX = currentLeft + planeSize / 2;
-                            const centerY = currentTop + planeSize / 2;
-                            
-                            // Apply new size
-                            selectedPlane.style.width = newSize + "px";
-                            selectedPlane.style.height = newSize + "px";
-                            selectedPlane.style.lineHeight = newSize + "px";
-                            selectedPlane.style.borderRadius = (newSize / 2) + "px";
-                            
-                            // Adjust position to maintain center point
-                            selectedPlane.style.left = (centerX - newSize / 2) + "px";
-                            selectedPlane.style.top = (centerY - newSize / 2) + "px";
-                        }
-                    }
-
-                    // Modified getPlanePositions function
-                    function getPlanePositions() {
-                        let plane1 = document.getElementById("plane1");
-                        let plane2 = document.getElementById("plane2");
-                        
-                        return {
-                            plane1: { 
-                                x: plane1.style.left || "0px", 
-                                y: plane1.style.top || "0px",
-                                size: plane1Size + "px"
-                            },
-                            plane2: { 
-                                x: plane2.style.left || "0px", 
-                                y: plane2.style.top || "0px",
-                                size: plane2Size + "px"
-                            }
-                        };
-                    }
-
-                    function clearSelection(event) {
-                        if (event.target.id === "container") {
-                            if (selectedPlane) {
-                                selectedPlane.style.border = "none";
-                                selectedPlane = null;
-                            }
-                        }
-                    }
-
-                    function runSimulation() {
-                        let positions = getPlanePositions();
-                        console.log("Saving Positions:", positions);
-                        window.pyQtApp.savePositions(positions);
-                    }
-
-                    function setupPlaneEventListeners(planeId) {
-                        const plane = document.getElementById(planeId);
-                        plane.addEventListener('click', planeClick);
-                        
-                        // Also attach to all children elements
-                        const children = plane.querySelectorAll('*');
-                        children.forEach(child => {
-                            child.addEventListener('click', planeClick);
-                        });
-                    }
-
-                    window.onload = function() {
-                        let container = document.getElementById('container');
-                        container.addEventListener('dragover', dragOver);
-                        container.addEventListener('drop', drop);
-                        container.addEventListener('click', clearSelection);
-                        container.addEventListener('wheel', handleWheel);
-                        
-                        setupPlaneEventListeners('plane1');
-                        setupPlaneEventListeners('plane2');
-                    };
-                </script>
-            </head>
-            <body>
-                <div id="container">
-                    <!-- Grid lines for X-axis (horizontal lines) -->
-                    <div class="grid-line grid-line-x" style="top: 50px;"></div>
-                    <div class="grid-line grid-line-x" style="top: 100px;"></div>
-                    <div class="grid-line grid-line-x" style="top: 150px;"></div>
-                    <div class="grid-line grid-line-x" style="top: 200px;"></div>
-                    <div class="grid-line grid-line-x" style="top: 250px;"></div>
-                    <div class="grid-line grid-line-x" style="top: 300px;"></div>
-                    
-                    <!-- Grid lines for Y-axis (vertical lines) -->
-                    <div class="grid-line grid-line-y" style="left: 50px;"></div>
-                    <div class="grid-line grid-line-y" style="left: 100px;"></div>
-                    <div class="grid-line grid-line-y" style="left: 150px;"></div>
-                    <div class="grid-line grid-line-y" style="left: 200px;"></div>
-                    <div class="grid-line grid-line-y" style="left: 250px;"></div>
-                    <div class="grid-line grid-line-y" style="left: 300px;"></div>
-                    
-                    <div id="x-axis" class="axis"></div>
-                    <div id="y-axis" class="axis"></div>
-                    
-                    <!-- Origin marker (0,0) -->
-                    <div class="marker origin-marker">0</div>
-                    
-                    <!-- X-Axis Markers -->
-                    <div class="marker x-marker" style="left: 50px;">300</div>
-                    <div class="marker x-marker" style="left: 100px;">600</div>
-                    <div class="marker x-marker" style="left: 150px;">900</div>
-                    <div class="marker x-marker" style="left: 200px;">1200</div>
-                    <div class="marker x-marker" style="left: 250px;">1500</div>
-                    <div class="marker x-marker" style="left: 300px;">1800</div>
-
-                    <!-- Y-Axis Markers -->
-                    <div class="marker y-marker" style="top: 50px;">1800</div>
-                    <div class="marker y-marker" style="top: 100px;">1500</div>
-                    <div class="marker y-marker" style="top: 150px;">1200</div>
-                    <div class="marker y-marker" style="top: 200px;">900</div>
-                    <div class="marker y-marker" style="top: 250px;">600</div>
-                    <div class="marker y-marker" style="top: 300px;">300</div>
-
-                    <div id="plane1" class="draggable" draggable="true" ondragstart="dragStart(event)">
-                    <svg viewBox="0 0 24 24" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-                        <path d="M21,16V14L13,9V3.5A1.5,1.5,0,0,0,11.5,2A1.5,1.5,0,0,0,10,3.5V9L2,14V16L10,13.5V19L8,20.5V22L11.5,21L15,22V20.5L13,19V13.5Z" fill="#007BFF"/>
-                    </svg>
-                    </div>
-                    <div id="plane2" class="draggable" draggable="true" ondragstart="dragStart(event)">
-                    <svg viewBox="0 0 24 24" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style="transform: rotate(90deg);">
-                        <path d="M21,16V14L13,9V3.5A1.5,1.5,0,0,0,11.5,2A1.5,1.5,0,0,0,10,3.5V9L2,14V16L10,13.5V19L8,20.5V22L11.5,21L15,22V20.5L13,19V13.5Z" fill="#FF0000"/>
-                    </svg>
-                    </div>
-                </div>
-            </body>
-        </html>
-        """
+        with open( os.path.join(script_dir, "web_content.html" ),  'r') as file:  # r to open file in READ mode
+            return file.read()
+         
+        
     def toggle_overlay(self):
         self.overlay_visible = not self.overlay_visible
         
         # Delete and recreate the tab with the new position
-        # if hasattr(self, 'side_tab'):
-        #     self.side_tab.deleteLater()
+        if hasattr(self, 'side_tab'):
+            self.side_tab.deleteLater()
         
         # Create new tab in the correct position
-        
         self.setup_side_tab()
         # Show/hide overlay as needed
         if self.overlay_visible:
@@ -928,17 +556,36 @@ class MainWindow(QMainWindow):
             self.overlay_container.hide()
         self.side_tab.show()
 
+    def setup_status_text_box(self):
+        """Setup the status text box in the bottom left"""
+        self.status_text_box = QTextEdit(self.main_widget)
+        self.status_text_box.setGeometry(10, self.height() - 30, 350, 100)
+        self.status_text_box.setReadOnly(True)
+        self.status_text_box.setStyleSheet("""
+            QTextEdit {
+                background-color: rgba(255,255,255,1);
+                color: #000;
+                font-size: 12px;
+            }
+        """)
+        self.update_status("Initialized and ready")
+
+    def update_status(self, message):
+        self.status_text_box.setText(f"{message}")
+
     def run_button_clicked(self):
         """Callback for the Run button (normal mode)"""
-        self.web_view.page().runJavaScript("getPlanePositions();", 
-                                        lambda positions: self.handle_inputs(positions, True))
+        # self.web_view.page().runJavaScript("getPlanePositions();", 
+        #                                 lambda positions: self.handle_inputs(positions, True))
+        self.handle_inputs(True)
 
     def run_simulate_clicked(self):
         """Callback for the Run Simulate button (simulation mode)"""
-        self.web_view.page().runJavaScript("getPlanePositions();", 
-                                        lambda positions: self.handle_inputs(positions, False))
+        self.handle_inputs(False)
 
-    def handle_inputs(self, positions, verify):
+
+
+    def handle_inputs(self, verify):
         # Check if file input has content
         file_path = self.file_input.text().strip()
         if file_path:
@@ -949,28 +596,6 @@ class MainWindow(QMainWindow):
             #grid_bounds = [-2400, 300, -1100, 600, 0, 1100]
             #self.plotter.show_grid(axes_ranges=grid_bounds)
         else:
-            def position_to_int(pos):
-                # Handle case where positions might be empty
-                try:
-                    x = float(pos['x'].replace('px', ''))
-                    y = float(pos['y'].replace('px', ''))
-                    s = float(pos['size'].replace('px', ''))
-
-                    return ( 6*(x)+48 , 6*(350-y) - 48, s/.3)
-                except (ValueError, KeyError):
-                    return (0, 0, 0)
-                    
-            z1 = self.blue_slider.value() / 10 
-            z2 = self.red_slider.value() / 10
-            # positions is a JavaScript object containing the current positions of the planes
-            print("Positions of planes:", positions)
-
-            # Process the positions and use them in the 3D visualization or other tasks
-            self.plane1_position = positions['plane1']
-            self.plane2_position = positions['plane2']
-
-            x1, y1, s1 = (position_to_int(self.plane1_position))
-            x2, y2, s2 = (position_to_int(self.plane2_position))
 
             if os.path.exists('plotter_config.json'):
                 with open('plotter_config.json', 'r') as f:
@@ -984,7 +609,6 @@ class MainWindow(QMainWindow):
                     save_to_file = config['save']
                     log_file = config['log_file']
 
-
             if(verify):
                 num_sims = 0
             global node_rect_cache
@@ -996,34 +620,78 @@ class MainWindow(QMainWindow):
                 with open(log_file, "w") as f:
                     f.write("")  # Optional: just clears the file
 
-            #for id in agents:
+            for id in self.agents:
+                d = self.agents[id]
+                print(d)
+                if(d['init_set'] == ''):
+                    self.verse_bridge.updatePlane( id= id, x =d['x'],y =d['y'], z=d['altitude'], radius= d['size'], pitch=np.pi/3,yaw=d['yaw'], v=100, agent_type="Car", dl ="controller_3d.py")
+                else:
 
-                #self.verse_bridge.updatePlane(x =x1,y =y1, z=z1, radius= s1, pitch=np.pi/3,yaw=np.pi/6, v=100, agent_type="Car" )
-            
-            self.verse_bridge.run_verse(x_dim=x_dim, y_dim=y_dim, z_dim=z_dim, time_horizon=time_horizon, time_step=time_step, num_sims=num_sims, verify=verify)
-            plotRemaining(self.plotter, verify)
+                    initial_set_str = d['init_set']
+                    if initial_set_str.startswith('[') and initial_set_str.endswith(']'):
+                        # Remove the outer brackets
+                        initial_set_str = initial_set_str[1:-1]
+                    
+                    # Split into rows
+                    rows = initial_set_str.split('], [')
+                    
+                    # Clean up the rows
+                    rows = [row.replace('[', '').replace(']', '') for row in rows]
+                    
+                    result = []
+                    for row in rows:
+                        # Split the row into elements
+                        elements = row.split(',')
+                        # Parse each element with eval (with numpy context)
+                        parsed_row = []
+                        for elem in elements:
+                            elem = elem.strip()
+                            if elem:
+                                print(elem)
+                                # Use eval with numpy context
+                                value = eval(elem, {"np": np})
+                                parsed_row.append(value)
+                        result.append(parsed_row)
+                    self.verse_bridge.updatePlane( id= id, agent_type="Car", dl ="controller_3d.py")
+                    self.verse_bridge.addInitialSet(self.active_agent_id, result)
 
 
-    def _set_python_bridge(self, result):
-        """Sets the python bridge object in JS"""
-        self.web_view.page().runJavaScript("window.pyQtApp = pyQtApp;", self._set_python_bridge)
+            #self.verse_bridge.run_verse(x_dim=x_dim, y_dim=y_dim, z_dim=z_dim, time_horizon=time_horizon, time_step=time_step, num_sims=num_sims, verify=verify)
+            self.run_in_thread( x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify)
+            #plotRemaining(self.plotter, verify)
 
-def resizeEvent(self, event):
-    """Handle window resize events"""
-    super().resizeEvent(event)
-    
-    # Keep left side tab in position relative to the overlay
-    self.update_side_tab_position()
-    
-    # Keep right overlay at a fixed position regardless of window size
-    if hasattr(self, 'right_overlay_container'):
-        # Set position to a fixed coordinate rather than relative to window width
-        if self.right_overlay_visible:
-            self.right_overlay_container.setGeometry(self.width() - 380, 0, 380, 300)
-    
-    # Update right tab position
-    if hasattr(self, 'right_side_tab'):
-        self.update_right_tab_position()
+            #self.update_status("Finished Running Verse")
+
+    def run_in_thread(self, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify):
+        # Disable UI elements if needed
+        # self.some_button.setEnabled(False)
+        
+        # Create and set up the worker
+        self.verse_worker = VerseWorker(
+            self.verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify
+        )
+        
+        # Connect signals
+        self.verse_worker.finished.connect(self.on_verse_calculation_complete)
+        
+        # Start the thread
+        self.verse_worker.start()
+
+    def on_verse_calculation_complete(self):
+        # This will be called when the thread finishes
+        plotRemaining(self.plotter, self.verse_worker.verify)
+        
+        # Re-enable UI elements
+        # self.some_button.setEnabled(True)
+        
+        # Clean up
+        self.verse_worker.deleteLater()
+
+
+        # def _set_python_bridge(self, result):
+        #     """Sets the python bridge object in JS"""
+        #     self.web_view.page().runJavaScript("window.pyQtApp = pyQtApp;", self._set_python_bridge)
+
 
 # Run the Qt Application
 if __name__ == "__main__":
