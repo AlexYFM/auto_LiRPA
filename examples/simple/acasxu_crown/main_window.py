@@ -1,5 +1,5 @@
 from verse.plotter.plotter3D import *
-
+import verse.plotter
 import sys
 import numpy as np
 import os
@@ -109,35 +109,22 @@ class MainWindow(QMainWindow):
         self.overlay_container = QWidget(self.main_widget)
         self.overlay_container.setGeometry(0, 0, 480, 600)
         self.overlay_container.setStyleSheet("background-color: #b7b7b7; border: 2px solid #616161; opacity: 0.8")
-
-
         
-        # Add text field for file loading
-        self.file_label = QLabel("Load From File:", self.overlay_container)
-        self.file_label.setGeometry(10, 450, 100, 25)
-        self.file_label.setStyleSheet("color: black; font-weight: bold; border:0px")
+        # Setup an empty slider container - will add sliders dynamically when plane is selected
+        self.setup_sliders()
         
-        self.file_input = QLineEdit(self.overlay_container)
-        self.file_input.setGeometry(110, 450, 240, 25)
-        self.file_input.setStyleSheet("""
-            QLineEdit {
-                background-color: white;
-                border: 1px solid #3498db;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #2980b9;
-            }
-        """)
-
-        # Add text field for initial set
-        self.initial_set_label = QLabel("Initial Set:", self.overlay_container)
-        self.initial_set_label.setGeometry(10, 480, 100, 25)
-        self.initial_set_label.setStyleSheet("color: black; font-weight: bold; border:0px")
+        # Create agent settings container that includes initial set, agent type, and decision logic
+        self.agent_settings_container = QWidget(self.overlay_container)
+        self.agent_settings_container.setGeometry(10, 400, 460, 115)  # Made taller to fit all three elements
+        self.agent_settings_container.setStyleSheet("background-color: #a0a0a0; border: 1px solid #616161; border-radius: 4px;")
         
-        self.initial_set_input = QLineEdit(self.overlay_container)
-        self.initial_set_input.setGeometry(110, 480, 240, 25)
+        # Add text field for initial set inside the container
+        self.initial_set_label = QLabel("Initial Set:", self.agent_settings_container)
+        self.initial_set_label.setGeometry(10, 10, 100, 25)
+        self.initial_set_label.setStyleSheet("color: black; font-weight: bold; border: 0px")
+        
+        self.initial_set_input = QLineEdit(self.agent_settings_container)
+        self.initial_set_input.setGeometry(120, 10, 330, 25)
         self.initial_set_input.setStyleSheet("""
             QLineEdit {
                 background-color: white;
@@ -150,13 +137,14 @@ class MainWindow(QMainWindow):
             }
         """)
         self.initial_set_input.textChanged.connect(self.update_initial_set)
-
-        self.agent_type_label = QLabel("Agent Type:", self.overlay_container)
-        self.agent_type_label.setGeometry(10, 510, 100, 25)
-        self.agent_type_label.setStyleSheet("color: black; font-weight: bold; border:0px")
         
-        self.agent_type_dropdown = QComboBox(self.overlay_container)
-        self.agent_type_dropdown.setGeometry(110, 510, 240, 25)
+        # Add agent type dropdown inside the container
+        self.agent_type_label = QLabel("Agent Type:", self.agent_settings_container)
+        self.agent_type_label.setGeometry(10, 45, 100, 25)
+        self.agent_type_label.setStyleSheet("color: black; font-weight: bold; border: 0px")
+        
+        self.agent_type_dropdown = QComboBox(self.agent_settings_container)
+        self.agent_type_dropdown.setGeometry(120, 45, 330, 25)
         self.agent_type_dropdown.addItems(["Car", "NPC"])
         self.agent_type_dropdown.setStyleSheet("""
             QComboBox {
@@ -177,13 +165,13 @@ class MainWindow(QMainWindow):
         """)
         self.agent_type_dropdown.currentTextChanged.connect(self.update_agent_type)
         
-        # Add dropdown for decision logic
-        self.decision_logic_label = QLabel("Decision Logic:", self.overlay_container)
-        self.decision_logic_label.setGeometry(10, 540, 100, 25)
-        self.decision_logic_label.setStyleSheet("color: black; font-weight: bold; border:0px")
+        # Add dropdown for decision logic inside the container
+        self.decision_logic_label = QLabel("Decision Logic:", self.agent_settings_container)
+        self.decision_logic_label.setGeometry(10, 80, 100, 25)
+        self.decision_logic_label.setStyleSheet("color: black; font-weight: bold; border: 0px")
         
-        self.decision_logic_dropdown = QComboBox(self.overlay_container)
-        self.decision_logic_dropdown.setGeometry(110, 540, 240, 25)
+        self.decision_logic_dropdown = QComboBox(self.agent_settings_container)
+        self.decision_logic_dropdown.setGeometry(120, 80, 330, 25)
         self.decision_logic_dropdown.addItems([
             "controller_3d.py", "None"
         ])
@@ -206,8 +194,25 @@ class MainWindow(QMainWindow):
         """)
         self.decision_logic_dropdown.currentTextChanged.connect(self.update_decision_logic)
         
-        # Setup an empty slider container - will add sliders dynamically when plane is selected
-        self.setup_sliders()
+        # Add text field for file loading - below the agent settings container
+        self.file_label = QLabel("Load From File:", self.overlay_container)
+        self.file_label.setGeometry(10, 525, 100, 25)
+        self.file_label.setStyleSheet("color: black; font-weight: bold; border: 0px")
+        
+        self.file_input = QLineEdit(self.overlay_container)
+        self.file_input.setGeometry(120, 525, 350, 25)
+        self.file_input.setStyleSheet("""
+            QLineEdit {
+                background-color: white;
+                border: 1px solid #3498db;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2980b9;
+            }
+        """)
+        
         # Setup buttons
         self.setup_buttons()
 
@@ -268,8 +273,15 @@ class MainWindow(QMainWindow):
         self.active_slider.show()
 
     def update_agent_yaw(self, agent_id, yaw_radians):
+        yaw_radians -= np.pi/2
+        # Normalize yaw to be within [-pi, pi]
+        if(np.pi < yaw_radians):
+            yaw_radians = yaw_radians - 2*np.pi
+        if(yaw_radians < -np.pi):
+            yaw_radians = yaw_radians + 2*np.pi
         """Update the yaw value for an agent"""
         if agent_id in self.agents:
+
             self.agents[agent_id]['yaw'] = yaw_radians
             # You might want to update the 3D visualization here
             #print(f"Updated yaw for {agent_id} to {yaw_radians} radians")
@@ -332,7 +344,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'right_overlay_container') and self.right_overlay_visible:
             overlay_width = 380
             self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 500)
-        
+
+        self.status_text_box.setGeometry(0, self.height() - 30, 350, 30)
+
         # Update right tab position
         if hasattr(self, 'right_side_tab'):
             self.update_right_tab_position()
@@ -357,27 +371,30 @@ class MainWindow(QMainWindow):
 
     def setup_buttons(self):
         """Setup the control buttons"""
-        button_width = 170  # Half the width of the original button
-    
-        self.run_button = StyledButton("Verify", self.overlay_container)
-        self.run_button.setGeometry(10, 365, button_width, 30)
-        self.run_button.clicked.connect(self.run_button_clicked)
+        # Add/Remove plane buttons - above the agent settings
+        button_width = 170
         
-        self.run_simulate_button = StyledButton("Simulate", self.overlay_container)
-        self.run_simulate_button.setGeometry(10 + button_width + 10, 365, button_width, 30)  # Position next to first button with a small gap
-        self.run_simulate_button.clicked.connect(self.run_simulate_clicked)
-        
-        # Add/Remove plane buttons
         self.add_plane_button = StyledButton("Add Plane", self.overlay_container)
-        self.add_plane_button.setGeometry(10, 400, button_width, 30)
+        self.add_plane_button.setGeometry(10, 365, button_width, 30)
         self.add_plane_button.clicked.connect(self.add_plane)
         
         self.remove_plane_button = StyledButton("Remove Plane", self.overlay_container)
-        self.remove_plane_button.setGeometry(10 + button_width + 10, 400, button_width, 30)
+        self.remove_plane_button.setGeometry(190, 365, button_width, 30)
         self.remove_plane_button.clicked.connect(self.remove_plane)
-
+        
+        # Verify, Simulate, and Stop buttons at the bottom
+        button_width = 150  # Adjusted for three buttons
+        
+        self.run_button = StyledButton("Verify", self.overlay_container)
+        self.run_button.setGeometry(10, 560, button_width, 30)
+        self.run_button.clicked.connect(self.run_button_clicked)
+        
+        self.run_simulate_button = StyledButton("Simulate", self.overlay_container)
+        self.run_simulate_button.setGeometry(10 + button_width + 5, 560, button_width, 30)
+        self.run_simulate_button.clicked.connect(self.run_simulate_clicked)
+        
         self.stop_button = StyledButton("Stop", self.overlay_container, color='red')
-        self.stop_button.setGeometry(120, 570, 170, 30)  # Adjusted y-position        
+        self.stop_button.setGeometry(10 + 2 * (button_width + 5), 560, button_width, 30)
         self.stop_button.clicked.connect(self.stop)
 
     def setup_web_view(self):
@@ -401,13 +418,6 @@ class MainWindow(QMainWindow):
                 #print(f"Saving yaw angle for {plane_id}: {yaw_radians} radians")
                 self.parent().update_agent_yaw(plane_id, yaw_radians)
 
-            # Add this method to the MainWindow class
-            def update_agent_yaw(self, agent_id, yaw_radians):
-                """Update the yaw value for an agent"""
-                if agent_id in self.agents:
-                    self.agents[agent_id]['yaw'] = yaw_radians
-                    # You might want to update the 3D visualization here
-                    #print(f"Updated yaw for {agent_id} to {yaw_radians} radians")
             
         
         self.js_bridge = Bridge()
@@ -639,7 +649,7 @@ class MainWindow(QMainWindow):
     def setup_status_text_box(self):
         """Setup the status text box in the bottom left"""
         self.status_text_box = QTextEdit(self.main_widget)
-        self.status_text_box.setGeometry(10, self.height() - 30, 350, 100)
+        self.status_text_box.setGeometry(0, self.height() - 30, 350, 30)
         self.status_text_box.setReadOnly(True)
         self.status_text_box.setStyleSheet("""
             QTextEdit {
@@ -699,13 +709,8 @@ class MainWindow(QMainWindow):
                     num_sims = config['num_sims']
                     save_to_file = config['save']
                     log_file = config['log_file']
-
-            if(verify):
-                num_sims = 0
-            global node_rect_cache
-            global node_idx
-            node_rect_cache ={}
-            node_idx =0
+            verse.plotter.plotter3D.node_rect_cache ={}
+            verse.plotter.plotter3D.node_idx =0
 
             if save_to_file:
                 with open(log_file, "w") as f:
@@ -714,7 +719,6 @@ class MainWindow(QMainWindow):
             for id in self.agents:
                 d = self.agents[id]
                 if(d['init_set'] == ''):
-                    print(d['altitude'])
                     self.verse_bridge.updatePlane( id= id, x =d['x'],y =d['y'], z= 300 - 3*d['altitude']-10, radius= d['size'], pitch=0,yaw=d['yaw'], v=100, agent_type=d["agent_type"], dl = (None if d["dl"] == "None" else d["dl"]) )
                 else:
 

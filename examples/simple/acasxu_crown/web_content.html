@@ -629,6 +629,8 @@
             let planes = document.querySelectorAll('.draggable');
             planes.forEach(plane => {
                 planesSizes[plane.id] = parseInt(plane.style.width) || 20;
+                plane.style.transform = 'rotate(1.5708rad)';
+
             });
         }
 

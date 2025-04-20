@@ -226,7 +226,7 @@ class VerseBridge():
     #uses input from from GUI
     def updatePlane(self, id="", agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
 
-        init_set = [[x - radius ,y -radius,z-radius,pitch, yaw, v  ],[x + radius ,y + radius,z+radius, pitch, yaw, v]]
+        init_set = [[x - radius ,y -radius,z-radius,yaw , pitch , v  ],[x + radius ,y + radius,z+radius,yaw,  pitch , v]]
 
         self.agents[id] = {"init_set":init_set, 
                            "init_mode": self.mode_dict[agent_type], 
