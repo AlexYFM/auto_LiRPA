@@ -13,7 +13,7 @@ import random
 from verse import BaseAgent
 from verse import LaneMap
 from verse.map.lane_map_3d import LaneMap_3d
-from verse.utils.utils import wrap_to_pi
+from verse.analysis.utils import wrap_to_pi
 from verse.analysis.analysis_tree import TraceType
 
 
@@ -35,6 +35,7 @@ from matplotlib.path import Path
 from matplotlib.lines import Line2D
 from verse.parser.parser import ControllerIR
 
+import onnxruntime as ort
 from numba import njit
 import functools as ft
 
@@ -44,15 +45,15 @@ import jax.random as jr
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import tqdm # for progress bar
-from jax_guam.functional.guam_new import GuamState
+from jax_guam.functional.guam_new import FuncGUAM, GuamState
 from jax_guam.functional.aero_prop_new import FuncAeroProp
 from jax_guam.functional.lc_control import LCControl, LCControlState
 from jax_guam.functional.surf_engine import SurfEngine, SurfEngineState
 from jax_guam.functional.vehicle_eom_simple import VehicleEOMSimple
 from jax_guam.guam_types import AircraftState, AircraftStateVec, EnvData, PwrCmd, RefInputs, Failure_Engines
 from jax_guam.subsystems.environment.environment import Environment
-from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import *
 from jax_guam.subsystems.genctrl_inputs.genctrl_inputs import *
+from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import *
 from jax_guam.subsystems.vehicle_model_ref.power_system import power_system
 from jax_guam.utils.ode import ode3
 from jax_guam.utils.jax_utils import jax2np, jax_use_cpu, jax_use_double
@@ -99,7 +100,7 @@ class AircraftAgent(BaseAgent):
             F_Gen_Sig_Sel=jnp.zeros(15),
         )
 
-        # self.dt = 0.2
+        self.dt = 0.2
         
         #self.decision_logic = ControllerIR.empty()
         
@@ -119,7 +120,7 @@ class AircraftAgent(BaseAgent):
         pwr_cmd = PwrCmd(CtrlSurfacePwr=control.Cmd.CtrlSurfacePwr, EnginePwr=control.Cmd.EnginePwr)
         power = power_system(pwr_cmd)
 
-        surf_act, prop_act = self.surf_eng.get_surf_prop_act(state.surf_eng, control.Cmd, power, self.failure)
+        surf_act, prop_act = self.surf_eng.get_surf_prop_act(state = state.surf_eng, cmd = control.Cmd, power = power) #, self.failure)
         d_state_surf_eng = self.surf_eng.surf_engine_state_deriv(control.Cmd, state.surf_eng)
 
         fm = self.aero_prop.aero_prop(prop_act, surf_act, env_data, aeroprop_body_data)
@@ -138,13 +139,27 @@ class AircraftAgent(BaseAgent):
     
     def array2GuamState(self, state_arr):
         # print("---for debug purpose----")
-        # print(state_arr)
+        print(len(state_arr))
+        
         e_long = state_arr[0:3]
         e_lat = state_arr[3:6]
         aircraft_state = np.array(state_arr[6:19])
         surf_state = state_arr[19:24]
         random_attr = state_arr[-1]
+        '''
+        e_long = state_arr[-26:-23]
+        e_lat = state_arr[-23:-20]
+        aircraft_state = np.array(state_arr[-20:-7])
+        surf_state = state_arr[-7:-2]
+        random_attr = state_arr[-1]
         
+        print(f"e_long: {e_long}")
+        print(f"e_lat: {e_lat}")
+        print(f"aircraft_state: {aircraft_state}")
+        print(f"surf_state: {surf_state}")
+        print(f"random_attr: {random_attr}")
+        '''
+             
         lc_control_state = LCControlState(int_e_long=np.array(e_long), int_e_lat=np.array(e_lat))
         surf_engine_state = SurfEngineState(ctrl_surf_state=np.array(surf_state))
         # Aircraft_state = AircraftState(np.array(aircraft_state[0:3]), np.array(aircraft_state[3:6]), np.array(aircraft_state[6:9]), np.array(aircraft_state[9:13]))
@@ -218,8 +233,7 @@ class AircraftAgent(BaseAgent):
         print(mode)
         jax_use_double()
         # time_bound = float(time_bound)
-        # T = int(np.ceil(time_bound/self.dt))
-        T = int(np.ceil(time_bound/time_step))
+        T = int(np.ceil(time_bound/self.dt))
         # print(time_bound, self.dt, T)
         
         # num_points = int(np.ceil(time_bound / time_step))
@@ -271,47 +285,55 @@ class AircraftAgent(BaseAgent):
         for kk in range(T):
             # print(mode)
             #cmd = decisions[kk]
-            # curr_t = (kk) * self.dt
-            curr_t = (kk) * time_step
+            curr_t = (kk) * self.dt
             # print(cmd)
             # ref_input = self.cmd2ref(cmd, state)
             # ref_input = self.cmd2ref(curr_t, time_bound, initGuamState, state, cmd) # for the single command for the horizon
-            # if init[-1] < 0: # intruder vehicle
-            #     """ correspond to the control of intruder """
-            #     # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, 0)
+            if init[-1] < 0: # intruder vehicle
+                """ correspond to the control of intruder """
+                # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, 0)
                 
-            #     #ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, cmd_list)
-            #     vel_bIc = np.array([0,0,0])
-            #     pos_bii = np.array([0, 200, -10])
-            #     ref_input = RefInputs(vel_bIc, pos_bii, Chi_des=np.array(0.0), Chi_dot_des=np.array(0.0))
-            # else: # ownship vehicle
-            """ correspond to the control of ego vehicle """
-            # JB 5.13
-            #print(f"self: {self.}")
-            ego_cmd = self.action_handler(mode, state, lane_map)
-            # New
-            #ego_cmd = 4
-
-            # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, ego_cmd)
-            # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, ego_cmd)
-            ref_input = acas_reference_inputs(0.1, initGuamState, ego_cmd)
-            # JB (5/13) ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, decisions)
-            print(state_arr[6:9])
-            print(ref_input.Vel_bIc_des, curr_t)
-            state = self.step(time_step, state, ref_input)
+                #ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, cmd_list)
+                
+                ### OLD STUFF (4/21)
+                #vel_bIc = np.array([0,0,0])
+                #pos_bii = np.array([0, 200, -10])
+                #ref_input = RefInputs(vel_bIc, pos_bii, Chi_des=np.array(0.0), Chi_dot_des=np.array(0.0))
+                
+                ego_cmd = 0
+                ref_input = acas_reference_inputs(dt = 0.2, state = state, cmd = ego_cmd)
+            else: # ownship vehicle
+                """ correspond to the control of ego vehicle """
+                # JB 5.13
+                #print(f"mode: {CraftMode.Weak_left}")
+                #print(f"self: {self.}")
+                #print(mode)
+                ego_cmd = self.action_handler(mode, state, lane_map)
+                # New
+                #ego_cmd = 4
+                #print("Debug purposes:  GuamState")
+                #print(initGuamState)
+                
+                # HARDCODED FOR TESTING (4/21): ego_cmd = 0
+                ref_input = acas_reference_inputs(dt = 0.2, state = state, cmd = ego_cmd)
+                #print(f"state shape: {initGuamState.aircraft.shape}")
+                #print(f"quat: {initGuamState.aircraft[9:13]}")
+                #print(f"ref_input: {ref_input}")
+                # (4/17/25) ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, ego_cmd)
+                # JB (5/13) ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, decisions)
+            state = self.step(self.dt, state, ref_input)
             # print(vec[1])
             state_arr = self.GuamState2array(state, kk+1)
-            print(state_arr[6:9])
-            time_arr = [curr_t + time_step]
+            time_arr = [curr_t + self.dt]
             #print(time_arr)
-            time_state_arr = [curr_t + time_step] + state_arr
+            time_state_arr = [curr_t + self.dt] + state_arr
             #print(time_state_arr)
             trace.append(time_state_arr)
         return np.array(trace)
 
-# if __name__ == '__main__':
-#     aguam = AircraftAgent('agent1')
+if __name__ == '__main__':
+    aguam = AircraftAgent('agent1')
 
-#     # Initialize simulation states
-#     trace = aguam.TC_Simulate(['none'], [1.25, 2.25], 7, 0.05) # this line does not need to be accurate
-#     print(trace)
+    # Initialize simulation states
+    trace = aguam.TC_Simulate(['none'], [1.25, 2.25], 7, 0.05) # this line does not need to be accurate
+    print(trace)

@@ -13,7 +13,7 @@ import random
 from verse import BaseAgent
 from verse import LaneMap
 from verse.map.lane_map_3d import LaneMap_3d
-from verse.utils.utils import wrap_to_pi
+from verse.analysis.utils import wrap_to_pi
 from verse.analysis.analysis_tree import TraceType
 
 
@@ -52,8 +52,8 @@ from jax_guam.functional.surf_engine import SurfEngine, SurfEngineState
 from jax_guam.functional.vehicle_eom_simple import VehicleEOMSimple
 from jax_guam.guam_types import AircraftState, AircraftStateVec, EnvData, PwrCmd, RefInputs, Failure_Engines
 from jax_guam.subsystems.environment.environment import Environment
-from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import *
 from jax_guam.subsystems.genctrl_inputs.genctrl_inputs import *
+from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import *
 from jax_guam.subsystems.vehicle_model_ref.power_system import power_system
 from jax_guam.utils.ode import ode3
 from jax_guam.utils.jax_utils import jax2np, jax_use_cpu, jax_use_double
@@ -226,10 +226,8 @@ class AircraftAgent_Int(BaseAgent):
         # trace[0, 1:] = init
         state_arr = init
         state = self.array2GuamState(state_arr)
-        initGuamState = state
         # print("---for testing purpose----")
         # print(init)
-        dt_acas=1.0
         """ determine whether to apply advisories to one agent """
         ''' ego vehicle: initial_x < 0; intruder vehicle: initial_x > 0 '''
         # if init[12] < 1e-6:
@@ -242,15 +240,9 @@ class AircraftAgent_Int(BaseAgent):
         # else:
         #     decisions =[0]*T
         # decisions = np.load("test.npy") # working example 1 of ACAS Xu advisory
-        # decisions = np.load("test1.npy") # working example 2 of ACAS Xu advisory
-        # decisions = decisions.tolist()
         # decisions =[0]*T    
         trace = [[0]+state_arr]
         # time_elapse_mats = init_time_elapse_mats(dt_acas)
-        cmd_list = []
-        length = int(time_bound / 0.01) + 1
-        # length = len(decisions)
-        cmd_list = [0]*T#length
         
         # for i in range(length):
         #     if i < length/3:
@@ -274,8 +266,8 @@ class AircraftAgent_Int(BaseAgent):
                 # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, 0)
                 
                 # 11/22 change to constant reference
-                ref_input = acas_reference_inputs(self.dt, initGuamState, 0)
-                # ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, cmd_list)
+                int_cmd = 0 # CoC
+                ref_input = acas_reference_inputs(dt = self.dt, state = state, cmd = int_cmd)
                 '''vel_bIc = np.array([0, 0, 0])
                 pos_bii = np.array([0, 200, -10])
                 ref_input = RefInputs(vel_bIc, pos_bii, Chi_des=np.array(0.0), Chi_dot_des=np.array(0.0))'''
@@ -285,11 +277,12 @@ class AircraftAgent_Int(BaseAgent):
                 #print(f"mode: {CraftMode.Weak_left}")
                 #print(f"self: {self.}")
                 #print(mode)
-                ego_cmd = self.action_handler(mode, state, lane_map)
+                #ego_cmd = self.action_handler(mode, state, lane_map)
                 # New
                 #ego_cmd = 4
 
-                ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, ego_cmd)
+                int_cmd = 0 # CoC
+                ref_input = acas_reference_inputs(dt = self.dt, state = state, cmd = int_cmd)
                 # JB (5/13) ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, decisions)
             state = self.step(self.dt, state, ref_input)
             # print(vec[1])

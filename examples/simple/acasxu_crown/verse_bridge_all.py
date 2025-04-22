@@ -215,6 +215,7 @@ class VerseBridge():
 
         # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
         # self.addInitialSet("car2",[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]])
+        # self.addInitialSet("car2",[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]])
 
 
         # self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")

@@ -35,7 +35,7 @@ import torch
 from collections import deque
 from torch import nn
 import time
-from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import QrotZ
+from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import QrotZ, quaternion_to_euler, euler_to_quaternion
 
 class AgentMode(Enum):
     COC = auto()
@@ -72,26 +72,88 @@ def get_acas_state_torch(own_state: torch.Tensor, int_state: torch.Tensor) -> to
 
 def dubins_to_guam_2d(state: List) -> List:
     v = state[-1]
-    theta = state[-2]
-    quat = QrotZ(theta)
-    vx = v
-    vy = 0
-    vz = 0 # set to a constant for now
+    theta = np.pi/2-state[-2]
+    # quat = QrotZ(theta)
+    quat = euler_to_quaternion(0,0,theta)
     x,y,z = state[0], state[1], 0
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, vx, vy, vz, 0.0, 0.0, 0.0, x, y, z, quat[0], quat[1], quat[2], quat[3], 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
 
 # assuming time is not a part of the state
 def guam_to_dubins_2d(state: np.ndarray) -> List: 
     vx, vy, vz = state[6:9]
-    x, y = state[12:14]
-    theta = wrap_to_pi(np.arctan2(vy, vx))
+    y, x = state[12:14]
+    _, _, theta = quaternion_to_euler(state[15:19])
     v = np.sqrt(vx**2+vy**2+vz**2)
-    return [x,y,theta,v]
+    return [x,y,np.pi/2-float(theta),v]
 
 def get_final_states_sim(n) -> Tuple[List]: 
     own_state = n.trace['car1'][-1]
     int_state = n.trace['car2'][-1]
     return own_state, int_state
+
+# def quaternion_to_euler(q):
+#     """
+#     Convert a quaternion to Euler angles (roll, pitch, yaw)
+    
+#     Parameters:
+#     - q: Quaternion as jnp.array of shape (4,) [w, x, y, z]
+    
+#     Returns:
+#     - roll: Rotation around x-axis (in radians)
+#     - pitch: Rotation around y-axis (in radians)
+#     - yaw (heading): Rotation around z-axis (in radians)
+#     """
+#     w, x, y, z = q
+
+#     # Roll (x-axis rotation)
+#     sinr_cosp = 2.0 * (w * x + y * z)
+#     cosr_cosp = 1.0 - 2.0 * (x * x + y * y)
+#     roll = jnp.arctan2(sinr_cosp, cosr_cosp)
+
+#     # Pitch (y-axis rotation)
+#     sinp = 2.0 * (w * y - z * x)
+#     # Clamp sinp to [-1, 1] to avoid NaNs due to numerical errors
+#     sinp = jnp.clip(sinp, -1.0, 1.0)
+#     pitch = jnp.arcsin(sinp)
+
+#     # Yaw (z-axis rotation)
+#     siny_cosp = 2.0 * (w * z + x * y)
+#     cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+#     yaw = jnp.arctan2(siny_cosp, cosy_cosp)
+
+#     return roll, pitch, yaw
+
+
+# def euler_to_quaternion(roll, pitch, yaw):
+#     """
+#     Convert Euler angles (roll, pitch, yaw) to a quaternion.
+
+#     Parameters:
+#     - roll: Rotation around x-axis (in radians)
+#     - pitch: Rotation around y-axis (in radians)
+#     - yaw (heading): Rotation around z-axis (in radians)
+
+#     Returns:
+#     - Quaternion as jnp.array([w, x, y, z])
+#     """
+#     hr = roll * 0.5
+#     hp = pitch * 0.5
+#     hy = yaw * 0.5
+
+#     cr = jnp.cos(hr)
+#     sr = jnp.sin(hr)
+#     cp = jnp.cos(hp)
+#     sp = jnp.sin(hp)
+#     cy = jnp.cos(hy)
+#     sy = jnp.sin(hy)
+
+#     # Quaternion formula for yaw-pitch-roll (Z-Y-X intrinsic rotation)
+#     w = cr * cp * cy + sr * sp * sy
+#     x = sr * cp * cy - cr * sp * sy
+#     y = cr * sp * cy + sr * cp * sy
+#     z = cr * cp * sy - sr * sp * cy
+
+#     return jnp.array([w, x, y, z])
 
 if __name__ == "__main__":
     import os
@@ -116,7 +178,7 @@ if __name__ == "__main__":
         initial_state=[dubins_to_guam_2d([-2000, 0, 0, 100]), dubins_to_guam_2d([-2000, 0, 0, 100])],
         initial_mode=([AgentMode.COC])
     )
-    T = 100
+    T = 20
     Tv = 1
     ts = 0.1
     N = 1
@@ -190,7 +252,7 @@ if __name__ == "__main__":
     fig = go.Figure()
     for trace in traces:
         # fig = simulation_tree(trace, None, fig, 1, 2, [1, 2], "fill", "trace")
-        fig = simulation_tree(trace, None, fig, 13, 14, [13, 14], "fill", "trace")
+        fig = simulation_tree(trace, None, fig, 14, 13, [14, 13], "fill", "trace")
     fig.show()
     # trace = scenario.verify(0.2,0.1) # increasing ts to 0.1 to increase learning speed, do the same for dryvr2
     # fig = reachtube_tree(trace) 

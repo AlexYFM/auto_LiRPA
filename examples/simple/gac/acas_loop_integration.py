@@ -153,7 +153,7 @@ for x_init_val in x_init_ego:
                     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
                     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]
                 ],
-                ([AgentMode.COC]),
+                ([AgentMode.SR]),
             ) # scenario in slides -- working example 2 of ACAS Xu advisory
 
 
@@ -224,9 +224,9 @@ for x_init_val in x_init_ego:
             warnings.filterwarnings("ignore")
 
             fig = go.Figure()
-            fig.update_layout(xaxis_title='x [m]', yaxis_title='y [m]')
+            fig.update_layout(xaxis_title='E [ft]', yaxis_title='N [ft]')
 
-            fig = simulation_tree(traces_simu, None, fig, 13, 14)  # red
+            fig = simulation_tree(traces_simu, None, fig, 14, 13)  # red
 
             # fig = reachtube_tree(traces_veri, None, fig, 13, 14, plot_color= [['#0000CC', '#0000FF', '#3333FF', '#6666FF', '#9999FF', '#CCCCFF'], # blue
             #                                                                   ['#CC0000', '#FF0000', '#FF3333', '#FF6666', '#FF9999', '#FFCCCC']])  # red
