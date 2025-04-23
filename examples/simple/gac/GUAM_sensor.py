@@ -77,7 +77,7 @@ class GUAMSensor:
         #self.time = 0
 
     # The baseline sensor is omniscient. Each agent can get the state of all other agents
-    def sense(self, agent: AircraftAgent, state_dict, lane_map):
+    def sense(self, agent: AircraftAgent, state_dict, lane_map, sim = False):
         len_dict = {}
         cont = {}
         disc = {}

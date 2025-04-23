@@ -165,7 +165,7 @@ if __name__ == "__main__":
     input_code_name = os.path.join(script_dir, "dl_acas_intruder.py")
     car2 = AircraftAgent_Int("car2", file_name=input_code_name)
     scenario = Scenario(ScenarioConfig(parallel=False))
-    scenario.set_sensor(GUAMSensor())
+    # scenario.set_sensor(GUAMSensor())
     
     car.set_initial(
         # initial_state=[[0, -0.5, 0, 1.0], [0.01, 0.5, 0, 1.0]],
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     T = 20
     Tv = 1
     ts = 0.1
-    N = 100
+    N = 1
     models = [torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth") for net in range(5)]
     scenario.config.print_level = 0
     scenario.add_agent(car)
