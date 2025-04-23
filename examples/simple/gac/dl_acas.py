@@ -69,7 +69,7 @@ class State:
     d21: float   
     d22: float   
     d23: float   
-    #d24: float    
+    d24: float    
     # want timer as 25 (maybe 24)
     timer: float
     

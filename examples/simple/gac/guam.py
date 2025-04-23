@@ -62,14 +62,6 @@ def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor
     psi = wrap_to_pi(int_state[2]-own_state[2])
     return torch.tensor([dist, theta, psi, own_state[3], int_state[3]])
 
-def get_acas_state_torch(own_state: torch.Tensor, int_state: torch.Tensor) -> torch.Tensor:
-    def wtp(x: float): 
-        return torch.remainder((x + torch.pi), (2 * torch.pi)) - torch.pi
-    dist = torch.sqrt((own_state[0]-int_state[0])**2+(own_state[1]-int_state[1])**2)
-    theta = wtp((2*torch.pi-own_state[2])+torch.arctan2(int_state[1]-own_state[1], int_state[0]-own_state[0]))
-    psi = wtp(int_state[2]-own_state[2])
-    return torch.tensor([dist, theta, psi, own_state[3], int_state[3]])
-
 def dubins_to_guam_2d(state: List) -> List:
     v = state[-1]
     theta = np.pi/2-state[-2]
@@ -86,9 +78,9 @@ def guam_to_dubins_2d(state: np.ndarray) -> List:
     v = np.sqrt(vx**2+vy**2+vz**2)
     return [x,y,np.pi/2-float(theta),v]
 
-def get_final_states_sim(n) -> Tuple[List]: 
-    own_state = n.trace['car1'][-1]
-    int_state = n.trace['car2'][-1]
+def get_final_states_verify(n) -> Tuple[List]: 
+    own_state = n.trace['car1'][-2:]
+    int_state = n.trace['car2'][-2:]
     return own_state, int_state
 
 # def quaternion_to_euler(q):

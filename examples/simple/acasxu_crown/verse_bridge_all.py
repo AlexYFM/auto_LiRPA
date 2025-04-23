@@ -124,8 +124,8 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> List[Tuple[torch
     theta_maxs = []
     theta_mins = []
     if theta_max<theta_min: # bound issue due to wrapping
-        theta_mins = [-np.pi, theta_min]
-        theta_maxs = [theta_max, np.pi]
+        theta_mins = [-np.pi, theta_max]
+        theta_maxs = [theta_min, np.pi]
     else:
         theta_mins = [theta_min]
         theta_maxs = [theta_max]
@@ -135,8 +135,8 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> List[Tuple[torch
     psi_maxs = []
     psi_mins = []
     if psi_max<psi_min: # bound issue due to wrapping
-        psi_mins = [-np.pi, psi_min]
-        psi_maxs = [psi_max, np.pi]
+        psi_mins = [-np.pi, psi_max]
+        psi_maxs = [psi_min, np.pi]
     else:
         psi_mins = [psi_min]
         psi_maxs = [psi_max]

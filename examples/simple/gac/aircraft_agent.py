@@ -100,7 +100,7 @@ class AircraftAgent(BaseAgent):
             F_Gen_Sig_Sel=jnp.zeros(15),
         )
 
-        self.dt = 0.2
+        # self.dt = 0.2
         
         #self.decision_logic = ControllerIR.empty()
         
@@ -139,7 +139,7 @@ class AircraftAgent(BaseAgent):
     
     def array2GuamState(self, state_arr):
         # print("---for debug purpose----")
-        print(len(state_arr))
+        # print(len(state_arr))
         
         e_long = state_arr[0:3]
         e_lat = state_arr[3:6]
@@ -230,10 +230,10 @@ class AircraftAgent(BaseAgent):
     def TC_simulate(
         self, mode: str, init, time_bound, time_step, lane_map: LaneMap = None
     ) -> np.ndarray:
-        print(mode)
         jax_use_double()
         # time_bound = float(time_bound)
-        T = int(np.ceil(time_bound/self.dt))
+        # T = int(np.ceil(time_bound/self.dt))
+        T = int(np.ceil(time_bound/time_step))
         # print(time_bound, self.dt, T)
         
         # num_points = int(np.ceil(time_bound / time_step))
@@ -242,10 +242,10 @@ class AircraftAgent(BaseAgent):
         # trace[0, 1:] = init
         state_arr = init
         state = self.array2GuamState(state_arr)
-        initGuamState = state
+        # initGuamState = state
         # print("---for testing purpose----")
         # print(init)
-        dt_acas=1.0
+        # dt_acas=1.0
         """ determine whether to apply advisories to one agent """
         ''' ego vehicle: initial_x < 0; intruder vehicle: initial_x > 0 '''
         # if init[12] < 1e-6:
@@ -267,66 +267,62 @@ class AircraftAgent(BaseAgent):
         # decisions =[0]*T    
         trace = [[0]+state_arr]
         # time_elapse_mats = init_time_elapse_mats(dt_acas)
-        cmd_list = []
+        # cmd_list = []
         # length = int(time_bound / 0.01) + 1
         #length = len(decisions)
         #cmd_list = [0]*length
-        
-        # for i in range(length):
-        #     if i < length/3:
-        #         cmd_list.append(1)
-        #     elif i < 7*length/8:
-        #         cmd_list.append(3)
-        #     else:
-        #         cmd_list.append(0)
+
         
         
         # spl_vel_bIc, spl_pos_bii = initialize_reference_inputs(time_bound, initGuamState, cmd_list)
         for kk in range(T):
             # print(mode)
             #cmd = decisions[kk]
-            curr_t = (kk) * self.dt
+            # curr_t = (kk) * self.dt
+            curr_t = (kk) * time_step
             # print(cmd)
             # ref_input = self.cmd2ref(cmd, state)
             # ref_input = self.cmd2ref(curr_t, time_bound, initGuamState, state, cmd) # for the single command for the horizon
-            if init[-1] < 0: # intruder vehicle
-                """ correspond to the control of intruder """
-                # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, 0)
+            # if init[-1] < 0: # intruder vehicle
+            #     """ correspond to the control of intruder """
+            #     # ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, 0)
                 
-                #ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, cmd_list)
+            #     #ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, cmd_list)
                 
-                ### OLD STUFF (4/21)
-                #vel_bIc = np.array([0,0,0])
-                #pos_bii = np.array([0, 200, -10])
-                #ref_input = RefInputs(vel_bIc, pos_bii, Chi_des=np.array(0.0), Chi_dot_des=np.array(0.0))
+            #     ### OLD STUFF (4/21)
+            #     #vel_bIc = np.array([0,0,0])
+            #     #pos_bii = np.array([0, 200, -10])
+            #     #ref_input = RefInputs(vel_bIc, pos_bii, Chi_des=np.array(0.0), Chi_dot_des=np.array(0.0))
                 
-                ego_cmd = 0
-                ref_input = acas_reference_inputs(dt = 0.2, state = state, cmd = ego_cmd)
-            else: # ownship vehicle
-                """ correspond to the control of ego vehicle """
-                # JB 5.13
-                #print(f"mode: {CraftMode.Weak_left}")
-                #print(f"self: {self.}")
-                #print(mode)
-                ego_cmd = self.action_handler(mode, state, lane_map)
-                # New
-                #ego_cmd = 4
-                #print("Debug purposes:  GuamState")
-                #print(initGuamState)
-                
-                # HARDCODED FOR TESTING (4/21): ego_cmd = 0
-                ref_input = acas_reference_inputs(dt = 0.2, state = state, cmd = ego_cmd)
+            #     ego_cmd = 0
+            #     ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd)
+            # else: # ownship vehicle
+            """ correspond to the control of ego vehicle """
+            # JB 5.13
+            #print(f"mode: {CraftMode.Weak_left}")
+            #print(f"self: {self.}")
+            #print(mode)
+            ego_cmd = self.action_handler(mode, state, lane_map)
+            # New
+            #ego_cmd = 4
+            #print("Debug purposes:  GuamState")
+            #print(initGuamState)
+            
+            # HARDCODED FOR TESTING (4/21): ego_cmd = 0
+            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd)
                 #print(f"state shape: {initGuamState.aircraft.shape}")
                 #print(f"quat: {initGuamState.aircraft[9:13]}")
                 #print(f"ref_input: {ref_input}")
                 # (4/17/25) ref_input = lift_cruise_reference_inputs_turn_right(curr_t, time_bound, initGuamState, ego_cmd)
                 # JB (5/13) ref_input = lift_cruise_reference_inputs_turn_random(self.dt, curr_t, time_bound, initGuamState, decisions)
-            state = self.step(self.dt, state, ref_input)
+            # state = self.step(self.dt, state, ref_input)
+            state = self.step(time_step, state, ref_input)
             # print(vec[1])
             state_arr = self.GuamState2array(state, kk+1)
-            time_arr = [curr_t + self.dt]
+            # time_arr = [curr_t + self.dt]
             #print(time_arr)
-            time_state_arr = [curr_t + self.dt] + state_arr
+            # time_state_arr = [curr_t + self.dt] + state_arr
+            time_state_arr = [curr_t + time_step] + state_arr
             #print(time_state_arr)
             trace.append(time_state_arr)
         return np.array(trace)
