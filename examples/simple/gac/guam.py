@@ -80,6 +80,14 @@ def guam_to_dubins_2d(state: np.ndarray) -> List:
     v = np.sqrt(vx**2+vy**2+vz**2)
     return [x,y,np.pi/2-float(theta),v]
 
+
+def guam_to_dubins_2d_set(states: List) -> List:
+    lb = guam_to_dubins_2d(states[0][1:])
+    ub = guam_to_dubins_2d(states[1][1:])
+    if lb[2]>ub[2]: # if theta is swapped due to either mapping issues or doing pi/2-theta
+        ub[2], lb[2] = lb[2], ub[2]
+    return [lb, ub]
+
 def get_final_states_verify(n) -> Tuple[List]: 
     own_state = n.trace['car1'][-2:]
     int_state = n.trace['car2'][-2:]
@@ -207,7 +215,8 @@ if __name__ == "__main__":
     car.set_initial(
         # initial_state=[[0, -0.5, 0, 1.0], [0.01, 0.5, 0, 1.0]],
         # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
-        initial_state=[dubins_to_guam_2d([0, -1000, np.pi/3, 100]), dubins_to_guam_2d([0, -1000, np.pi/3, 100])],
+        initial_state=[dubins_to_guam_2d([0, -1010, np.pi/3, 100]), dubins_to_guam_2d([0, -990, np.pi/3, 100])],
+        # initial_state=[dubins_to_guam_2d([-20, -1020, np.pi/3, 100]), dubins_to_guam_2d([20, -980, np.pi/3, 100])],
         initial_mode=([AgentMode.COC])
     )
     car2.set_initial(
@@ -215,7 +224,7 @@ if __name__ == "__main__":
         initial_state=[dubins_to_guam_2d([-2000, 0, 0, 100]), dubins_to_guam_2d([-2000, 0, 0, 100])],
         initial_mode=([AgentMode.COC])
     )
-    T = 20
+    T = 50
     Tv = 1
     ts = 0.1
     scenario.config.reachability_method = ReachabilityMethod.DRYVR_DISC
@@ -237,7 +246,7 @@ if __name__ == "__main__":
     while len(queue):
         cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
         own_state, int_state = get_final_states_verify(cur_node)
-        dub_own_state, dub_int_state = [guam_to_dubins_2d(own_state[0][1:]), guam_to_dubins_2d(own_state[1][1:])], [guam_to_dubins_2d(int_state[0][1:]), guam_to_dubins_2d(int_state[1][1:])]
+        dub_own_state, dub_int_state = guam_to_dubins_2d_set(own_state), guam_to_dubins_2d_set(int_state)
         # print(dub_own_state, dub_int_state)
         modes = set()
         reachsets = get_acas_reach(np.array(dub_own_state), np.array(dub_int_state))
