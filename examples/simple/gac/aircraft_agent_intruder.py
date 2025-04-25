@@ -60,7 +60,12 @@ from jax_guam.utils.jax_utils import jax2np, jax_use_cpu, jax_use_double
 from jax_guam.utils.logging import set_logger_format
 from loguru import logger
 
-
+def guam_to_dubins_3d(state: np.ndarray) -> List: 
+    vx, vy, vz = state[6:9]
+    y, x, z = state[12:15]
+    _, psi, theta = quaternion_to_euler(state[15:19])
+    v = np.sqrt(vx**2+vy**2+vz**2)
+    return [x,y,-z, np.pi/2-float(theta),float(psi), v]
 
 class AircraftAgent_Int(BaseAgent):
     def __init__(
@@ -227,6 +232,9 @@ class AircraftAgent_Int(BaseAgent):
         # trace[0, 1:] = init
         state_arr = init
         state = self.array2GuamState(state_arr)
+        dub_state_arr = guam_to_dubins_3d(state_arr)
+        vz = -dub_state_arr[-1]*np.sin(dub_state_arr[-2])
+        init_z = -dub_state_arr[2]
         # print("---for testing purpose----")
         # print(init)
         """ determine whether to apply advisories to one agent """
@@ -270,7 +278,9 @@ class AircraftAgent_Int(BaseAgent):
                 # 11/22 change to constant reference
             int_cmd = 0 # CoC
             # ref_input = acas_reference_inputs(dt = self.dt, state = state, cmd = int_cmd)
-            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = int_cmd)
+            des_down = init_z+(vz*curr_t)
+            # print(f'Ref z {des_down}, vz int {vz}')
+            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = int_cmd, des_down=des_down, des_vz=-vz)
             '''vel_bIc = np.array([0, 0, 0])
             pos_bii = np.array([0, 200, -10])
             ref_input = RefInputs(vel_bIc, pos_bii, Chi_des=np.array(0.0), Chi_dot_des=np.array(0.0))'''

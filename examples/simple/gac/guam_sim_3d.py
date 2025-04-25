@@ -61,7 +61,7 @@ def dubins_to_guam_3d(state: List) -> List:
     # quat = QrotZ(theta)
     quat = euler_to_quaternion(0,psi,theta)
     x,y,z = state[0], state[1], state[2]
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
 
 # assuming time is not a part of the state
 def guam_to_dubins_3d(state: np.ndarray) -> List: 
@@ -69,7 +69,7 @@ def guam_to_dubins_3d(state: np.ndarray) -> List:
     y, x, z = state[12:15]
     _, psi, theta = quaternion_to_euler(state[15:19])
     v = np.sqrt(vx**2+vy**2+vz**2)
-    return [x,y,z, np.pi/2-float(theta),float(psi), v]
+    return [x,y,-z, np.pi/2-float(theta),float(psi), v]
 
 def get_final_states_sim(n) -> Tuple[List]: 
     own_state = n.trace['car1'][-1]
@@ -135,12 +135,11 @@ if __name__ == "__main__":
 
     for i in range(N):
         scenario.set_init(
-            # [[dubins_to_guam_3d([-100, -1000, -1, np.pi/3, np.pi/6, 100]), dubins_to_guam_3d([100, -900, 1, np.pi/3, np.pi/6, 100])],
-            [[dubins_to_guam_3d([-100, -1000, -1, np.pi/3, 0, 100]), dubins_to_guam_3d([100, -900, 1, np.pi/3, 0, 100])],
-              [dubins_to_guam_3d([-2001, -1, -999, 0,0, 100]), dubins_to_guam_3d([-1999, 1, -1001, 0,0, 100])]],
+            [[dubins_to_guam_3d([0, -1000, -1, np.pi/3, np.pi/12, 100]), dubins_to_guam_3d([0, -1000, 1, np.pi/3, np.pi/12, 100])],
+            # [[dubins_to_guam_3d([-100, -1000, -1, np.pi/3, 0, 100]), dubins_to_guam_3d([100, -900, 1, np.pi/3, 0, 100])],
+              [dubins_to_guam_3d([-2001, -1, 999, 0,0, 100]), dubins_to_guam_3d([-1999, 1, 1001, 0,0, 100])]],
             [(AgentMode.COC,), (AgentMode.COC,)]
         )
-        print(guam_to_dubins_3d(dubins_to_guam_3d([-100, -1000, -1, np.pi/3, np.pi/6, 100])))
         trace = scenario.simulate(Tv, ts) # this is the root
         id = 1+trace.root.id
         # net = 0 # eventually this could be modified in the loop by some cmd_list var

@@ -61,6 +61,7 @@ import time
 
 from pathlib import Path
 from guam_sim import guam_to_dubins_2d, get_final_states_sim
+from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import QrotZ, quaternion_to_euler, euler_to_quaternion
 
 x_folder = "{}{}{}".format('batch_figures_good', os.sep, "x_pos")
 y_folder = "{}{}{}".format('batch_figures_good', os.sep, "y_pos")
@@ -145,16 +146,20 @@ for x_init_val in x_init_ego:
 
             own_0_x = x_init_val
             own_0_y = y_init_val
-            own_0_z = -10
-
+            own_0_z = 0
+            quat = euler_to_quaternion(0, np.pi/12, 0)
+            # quat = euler_to_quaternion(0, 0, 0)
             ac1.set_initial(
                 [
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]
+                    # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
+                    # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z,float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]           
                 ],
                 ([AgentMode.SR]),
+                # ([AgentMode.COC]),
             ) # scenario in slides -- working example 2 of ACAS Xu advisory
 
 

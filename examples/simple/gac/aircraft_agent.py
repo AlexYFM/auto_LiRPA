@@ -61,6 +61,12 @@ from jax_guam.utils.logging import set_logger_format
 from loguru import logger
 
 
+def guam_to_dubins_3d(state: np.ndarray) -> List: 
+    vx, vy, vz = state[6:9]
+    y, x, z = state[12:15]
+    _, psi, theta = quaternion_to_euler(state[15:19])
+    v = np.sqrt(vx**2+vy**2+vz**2)
+    return [x,y,-z, np.pi/2-float(theta),float(psi), v]
 
 class AircraftAgent(BaseAgent):
     def __init__(
@@ -231,50 +237,14 @@ class AircraftAgent(BaseAgent):
         self, mode: str, init, time_bound, time_step, lane_map: LaneMap = None
     ) -> np.ndarray:
         jax_use_double()
-        # time_bound = float(time_bound)
-        # T = int(np.ceil(time_bound/self.dt))
         T = int(np.ceil(time_bound/time_step))
-        # print(time_bound, self.dt, T)
-        
-        # num_points = int(np.ceil(time_bound / time_step))
-        # trace = np.zeros((num_points + 1, 1 + len(init)))
-        # trace[1:, 0] = [round(i * time_step, 10) for i in range(num_points)]
-        # trace[0, 1:] = init
         state_arr = init
-        state = self.array2GuamState(state_arr)
-        # initGuamState = state
-        # print("---for testing purpose----")
-        # print(init)
-        # dt_acas=1.0
-        """ determine whether to apply advisories to one agent """
-        ''' ego vehicle: initial_x < 0; intruder vehicle: initial_x > 0 '''
-        # if init[12] < 1e-6:
-        #     decisions = np.load("test.npy")
-        #     decisions=decisions.tolist()
-        #     # decisions = []
-        #     # for _ in range(T):
-        #     #     decisions.append(random.randint(0,4))
-        #     # decisions = decisions.tolist()     
-        # else:
-        #     decisions =[0]*T
-        # decisions = np.load("test.npy") # working example 1 of ACAS Xu advisory
-        
-        # 11/21 comment out
-        #decisions = np.load("test1.npy") # working example 2 of ACAS Xu advisory
-        #decisions = decisions.tolist()
-        # end 11/21 comment out
-        
-        # decisions =[0]*T    
+        state = self.array2GuamState(state_arr)   
         trace = [[0]+state_arr]
-        # time_elapse_mats = init_time_elapse_mats(dt_acas)
-        # cmd_list = []
-        # length = int(time_bound / 0.01) + 1
-        #length = len(decisions)
-        #cmd_list = [0]*length
+        dub_state_arr = guam_to_dubins_3d(state_arr)
+        vz = -dub_state_arr[-1]*np.sin(dub_state_arr[-2])
+        init_z = -dub_state_arr[2]
 
-        
-        
-        # spl_vel_bIc, spl_pos_bii = initialize_reference_inputs(time_bound, initGuamState, cmd_list)
         for kk in range(T):
             # print(mode)
             #cmd = decisions[kk]
@@ -309,7 +279,9 @@ class AircraftAgent(BaseAgent):
             #print(initGuamState)
             
             # HARDCODED FOR TESTING (4/21): ego_cmd = 0
-            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd)
+            des_down = init_z+(vz*curr_t)
+            # print(f'Ref z own {des_down}, Ref vz own {vz}') # wrt to GUAM states
+            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd, des_down=des_down, des_vz=vz)
                 #print(f"state shape: {initGuamState.aircraft.shape}")
                 #print(f"quat: {initGuamState.aircraft[9:13]}")
                 #print(f"ref_input: {ref_input}")
