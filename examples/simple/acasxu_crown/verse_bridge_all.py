@@ -124,8 +124,8 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> List[Tuple[torch
     theta_maxs = []
     theta_mins = []
     if theta_max<theta_min: # bound issue due to wrapping
-        theta_mins = [-np.pi, theta_max]
-        theta_maxs = [theta_min, np.pi]
+        theta_mins = [-np.pi, theta_min]
+        theta_maxs = [theta_max, np.pi]
     else:
         theta_mins = [theta_min]
         theta_maxs = [theta_max]
@@ -135,8 +135,8 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> List[Tuple[torch
     psi_maxs = []
     psi_mins = []
     if psi_max<psi_min: # bound issue due to wrapping
-        psi_mins = [-np.pi, psi_max]
-        psi_maxs = [psi_min, np.pi]
+        psi_mins = [-np.pi, psi_min]
+        psi_maxs = [psi_max, np.pi]
     else:
         psi_mins = [psi_min]
         psi_maxs = [psi_max]
@@ -212,9 +212,11 @@ class VerseBridge():
 
         # self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
         # self.addInitialSet("car1", [[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]])
+        # [[-2, -2, -2, np.pi, np.pi/6, 100], [-1,-1, -1, np.pi, np.pi/6, 100]]
 
         # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
         # self.addInitialSet("car2",[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]])
+        # [[-1001, 1, 999, 0,0, 100], [-999, 2, 1000, 0,0, 100]]
         # self.addInitialSet("car2",[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]])
 
 
@@ -332,7 +334,7 @@ class VerseBridge():
                             acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
                             x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
                             x = (x_l+x_u)/2
-
+                            print(f'{own_id}-{id} {reachset}')
                             last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                             for tau_idx in range(tau_idx_min[id], tau_idx_max[id]+1):
                                 lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
@@ -341,6 +343,7 @@ class VerseBridge():
                                 bounded_x = BoundedTensor(x, ptb=ptb_x)
                                 lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
 
+                                print(f'\n {own_id} Advisory ranges:', lb, ub,'\n')
                                 new_mode = np.argmin(lb.numpy())+1                             
                                 new_modes = []
                                 for i in range(len(ub.numpy()[0])):
@@ -411,6 +414,7 @@ class VerseBridge():
                         acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
                         last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                         ads = models[last_cmd-1][tau_idx](acas_state.float().view(1,5)).detach().numpy()
+                        print(f'{own_id} \nAdvisory scores:', ads,'\n')
                         new_mode = np.argmin(ads[0])+1 # will eventually be a list
                         all_modes[own_id] = new_mode
                     
