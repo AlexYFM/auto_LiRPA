@@ -22,6 +22,7 @@ from torch import nn
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import PerturbationLpNorm
 import itertools
+from verse.plotter.plotter3D import plotRemaining
 
 class AgentMode(Enum):
     COC = auto()
@@ -423,6 +424,8 @@ class VerseBridge():
                         scenario.set_init_single(
                             id, [states[id] for _ in range(2)], (cur_mode,) # np array may not work
                         )
+                        ### ADDS POINT LABELS
+                        #self.plotter.add_point_labels(states[id][0:3], [cur_mode.name], always_visible=True, font_size=10)
                     node_id += 1
                     new_trace = scenario.simulate(Tv, ts, self.plotter)
                     temp_root = new_trace.root
@@ -431,6 +434,10 @@ class VerseBridge():
                     if new_node.start_time + Tv>=T: # if the time of the current simulation + start_time is at or above total time, don't add
                         continue
                     queue.append(new_node)
+
+                # HAVE TO CALL THIS AFTER EACH SIMULATION TO UPDATE THE PLOTTER (THIS IS THE ONLY PLACE WITH THIS INFORMATION)
+                plotRemaining(self.plotter, False)
+
 
                 trace.nodes = trace._get_all_nodes(trace.root)
             print(f'Simulation time for {N} simulations: {time.perf_counter()-start}')

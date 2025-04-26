@@ -7,12 +7,12 @@ import json
 import pyvistaqt as pvqt
 import time
 from ui_components import StyledButton, SvgPlaneSlider, OverlayTab, RightOverlayTab, RightOverlay
-
+from threading import Thread
 
 from PyQt6.QtCore import Qt, QObject, pyqtSlot, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, 
-    QSizePolicy, QLabel, QLineEdit, QTextEdit,QComboBox
+    QSizePolicy, QLabel, QLineEdit, QTextEdit,QComboBox, QSlider
 )
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -22,6 +22,23 @@ import pyvistaqt as pvqt
 from PyQt6.QtWebChannel import QWebChannel
 
 from verse_bridge_all import VerseBridge
+class PlotterWorker(QThread):
+    finished = pyqtSignal()
+    progress = pyqtSignal(int)  # Optional: for progress updates
+
+    def __init__(self, ax, log_file):
+        super().__init__()
+        self.log_file = log_file
+        self.ax= ax
+        
+
+    def run(self):
+        # Run the computation in the thread
+        preprocess_file(self.ax, self.log_file) 
+        
+        self.finished.emit()
+
+
 class VerseWorker(QThread):
     finished = pyqtSignal()
     progress = pyqtSignal(int)  # Optional: for progress updates
@@ -90,6 +107,7 @@ class MainWindow(QMainWindow):
         self.right_side_tab.raise_()
 
         self.verse_worker = None
+        self.thread = None
         
     def setup_main_ui(self):
         """Setup the main UI components"""
@@ -103,6 +121,55 @@ class MainWindow(QMainWindow):
         self.plotter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout.addWidget(self.plotter.interactor)
         self.verse_bridge = VerseBridge(self.plotter)
+
+    def setup_timeline_slider(self):
+        """Setup the timeline slider at the bottom of the screen"""
+        self.timeline_slider = QSlider(Qt.Orientation.Horizontal, self.main_widget)
+        
+        # Calculate position to span across the bottom of the screen
+        slider_height = 30
+        slider_y_position = self.height() - slider_height - 10  # 10px padding from bottom
+        
+        # Make it extend across the screen, leaving space for status box
+        self.timeline_slider.setGeometry(350, slider_y_position, self.width() - 350, slider_height)
+        
+        # Style the slider
+        self.timeline_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #999999;
+                height: 8px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #B1B1B1, stop:1 #c4c4c4);
+                margin: 2px 0;
+            }
+            
+            QSlider::handle:horizontal {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #b4b4b4, stop:1 #8f8f8f);
+                border: 1px solid #5c5c5c;
+                width: 18px;
+                margin: -2px 0;
+                border-radius: 3px;
+            }
+            
+            QSlider::handle:horizontal:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3498db, stop:1 #2980b9);
+            }
+        """)
+        
+        # Connect the slider to a function to update visualization based on time
+        self.timeline_slider.valueChanged.connect(self.on_timeline_changed)
+        
+        # Initially hide the slider (will be shown when needed)
+        self.timeline_slider.hide()
+
+    def on_timeline_changed(self, value):
+        """Handle timeline slider value changes"""
+        # Update the visualization to show the state at the selected time
+        
+        # Call the existing visualization update method for the selected time
+        # This is a placeholder - call your actual function to update the visualization
+        # for the specified time step
+        load_and_plot(self.plotter, target_time= float(value)/100)
+
 
     def setup_overlay(self):
         """Setup the overlay container and its components"""
@@ -212,8 +279,9 @@ class MainWindow(QMainWindow):
                 border: 2px solid #2980b9;
             }
         """)
+        #self.file_input.setText("boxes_multi.txt")
         
-        # Setup buttons
+        # Setup buttons 
         self.setup_buttons()
 
     def setup_sliders(self):
@@ -346,7 +414,10 @@ class MainWindow(QMainWindow):
             self.right_overlay_container.setGeometry(self.width() - overlay_width, 0, overlay_width, 500)
 
         self.status_text_box.setGeometry(0, self.height() - 30, 350, 30)
-
+        if hasattr(self, 'timeline_slider'):
+                slider_height = 30
+                slider_y_position = self.height() - slider_height - 10
+                self.timeline_slider.setGeometry(350, slider_y_position, self.width() - 350, slider_height)
         # Update right tab position
         if hasattr(self, 'right_side_tab'):
             self.update_right_tab_position()
@@ -683,20 +754,82 @@ class MainWindow(QMainWindow):
         if(self.verse_worker):
             self.verse_worker.terminate()
             self.verse_worker.wait()
+        if(self.thread):
+            self.thread.join()
+            self.thread = None
         self.plotter.clear()
         self.update_status("Stopped Verse")
+    def get_max_time_from_data(self, file_path, verify):
+        """Get the maximum time value from the file (last value of last line)"""
+        max_time = 0
+        
+        try:
+            with open(file_path, 'r') as file:
+                lines = file.readlines()
+                if lines:
+                    # Get the last line
+                    if(verify):
+                        last_line = lines[-1].strip()
+                    else:
+                        last_line = lines[-3].strip()
+                    if last_line:
+                        # Split the line and get the last value
+                        parts = last_line.split()
+                        if parts:
+                            try:
+                                max_time = float(parts[0])
+                            except ValueError:
+                                # If the first value isn't a time value, try the last value
+                                try:
+                                    max_time = float(parts[-1])
+                                except ValueError:
+                                    self.update_status("Could not determine max time from file")
+        except Exception as e:
+            self.update_status(f"Error reading file: {str(e)}")
+        
+        return max_time
 
 
     def handle_inputs(self, verify):
         # Check if file input has content
         file_path = self.file_input.text().strip()
         if file_path:
-            # If file specified, load boxes first
-            self.plotter.show_grid(all_edges=True, n_xlabels = 6, n_ylabels = 6, n_zlabels = 6)
-            load_and_plot(self.plotter, log_file=file_path)
-            #grid_bounds = [-2400, 300, -1100, 600, 0, 1100]
-            #self.plotter.show_grid(axes_ranges=grid_bounds)
+            # If file specified, load boxes
+            self.stop()
+
+            self.plotter.show_grid(all_edges=True)
+
+
+            max_time = self.get_max_time_from_data(file_path, verify)
+            print(f"Max time from file: {max_time}")
+            
+            # Setup the slider with the appropriate range
+            if not hasattr(self, 'timeline_slider'):
+                self.setup_timeline_slider()
+
+            self.timeline_slider.setMinimum(0)
+            self.timeline_slider.setMaximum(int(max_time)*100)
+            self.timeline_slider.setValue(int(max_time)*100)  # Start at end
+            self.timeline_slider.setTickInterval(1)  # Single keyboard step is 1/100th of a time unit
+            self.timeline_slider.setPageStep(100 // 10) 
+
+            #self.thread = Thread(target=preprocess_file, args = [self.plotter, file_path])
+
+
+            #self.run_plotter_in_thread( file_path)
+            preprocess_file(self.plotter, file_path)
+
+            self.timeline_slider.show()
+            self.timeline_slider.raise_()
+            verse.plotter.plotter3D.load_time = float(max_time)
+
+
+
         else:
+            if  hasattr(self, 'timeline_slider'):
+
+                self.timeline_slider.hide()
+
 
             if os.path.exists('plotter_config.json'):
                 with open('plotter_config.json', 'r') as f:
@@ -755,8 +888,6 @@ class MainWindow(QMainWindow):
 
 
     def run_in_thread(self, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify):
-        # Disable UI elements if needed
-        # self.some_button.setEnabled(False)
         
         # Create and set up the worker
         self.verse_worker = VerseWorker(
@@ -768,6 +899,24 @@ class MainWindow(QMainWindow):
         
         # Start the thread
         self.verse_worker.start()
+    def run_plotter_in_thread(self, log_file):
+       
+        
+        # Create and set up the worker
+        self.plotter_worker = PlotterWorker(
+            self.plotter, log_file
+        )
+        
+        # Connect signals
+        self.plotter_worker.finished.connect(self.on_plotter_complete)
+        
+        # Start the thread
+        self.plotter_worker.start()
+
+    def on_plotter_complete(self):
+        
+        self.plotter_worker.deleteLater()
+        self.plotter_worker = None
 
     def on_verse_calculation_complete(self):
         # This will be called when the thread finishes
