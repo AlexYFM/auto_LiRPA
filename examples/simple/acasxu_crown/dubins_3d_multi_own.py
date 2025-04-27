@@ -116,11 +116,19 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch
 
     arho_min = np.inf # does this make sense
     arho_max = -np.inf
+    arho_pi_wrap = []
+    arho_origin_wrap = []
     for own_vert in own_ext:
         for int_vert in int_ext:
-            arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi)
-            arho_max = max(arho_max, arho)
-            arho_min = min(arho_min, arho)
+            # arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi) 
+            # arho_max = max(arho_max, arho)
+            # arho_min = min(arho_min, arho)
+            arho_pi_wrap.append(wrap_to_pi(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0])))
+            arho_origin_wrap.append(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi))
+    if max(arho_origin_wrap)-min(arho_origin_wrap)<max(arho_pi_wrap)-min(arho_pi_wrap):
+        arho_min, arho_max = min(arho_origin_wrap), max(arho_origin_wrap)
+    else:
+        arho_min, arho_max = min(arho_pi_wrap), max(arho_pi_wrap)
 
     theta_min = wrap_to_pi((2*np.pi-own_set[1][3])+arho_min)
     theta_max = wrap_to_pi((2*np.pi-own_set[0][3])+arho_max) 
@@ -207,14 +215,14 @@ if __name__ == "__main__":
         # initial_state=[[-1, -1010, -1, np.pi/3, np.pi/6, 100], [1, -990, 1, np.pi/3, np.pi/6, 100]],
         # initial_state=[[0, -1000, 0, np.pi/3, np.pi/6, 100], [0, -1000, 0, np.pi/3, np.pi/6, 100]],
         # initial_state=[[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]],
-        initial_state = [[-2, -2, -2, np.pi, np.pi/6, 100], [-1,-1, -1, np.pi, np.pi/6, 100]],
+        initial_state = [[-2, -2, -2, np.pi, np.pi/6, 100], [-1,0, -1, np.pi, np.pi/6, 100]],
         initial_mode=(AgentMode.COC, )
     )
     car2.set_initial(
         # initial_state=[[-2000, 0, 1000, 0,0, 100], [-2000, 0, 1000, 0,0, 100]],
         # initial_state=[[-2001, -10, 999, 0,0, 100], [-1999, 10, 1001, 0,0, 100]],
         # initial_state=[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]],
-        initial_state= [[-1001, 1, 999, 0,0, 100], [-999, 2, 1000, 0,0, 100]],
+        initial_state= [[-1001, -1, 999, 0,0, 100], [-999, 2, 1000, 0,0, 100]],
         initial_mode=(AgentMode.COC, )
     )
     T = 10
@@ -251,7 +259,7 @@ if __name__ == "__main__":
             acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
             x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
             x = (x_l+x_u)/2
-            print(reachset)
+            # print(reachset)
             last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
             for tau_idx in range(tau_idx_min, tau_idx_max+1):
                 lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
@@ -259,7 +267,7 @@ if __name__ == "__main__":
                 ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
                 bounded_x = BoundedTensor(x, ptb=ptb_x)
                 lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
-                print(f'\n Own Advisory ranges:', lb, ub,'\n')
+                # print(f'\n Own Advisory ranges:', lb, ub,'\n')
 
                 # new_mode = np.argmax(ub.numpy())+1 # will eventually be a list/need to check upper and lower bounds
                 new_mode = np.argmin(lb.numpy())+1 # will eventually be a list/need to check upper and lower bounds

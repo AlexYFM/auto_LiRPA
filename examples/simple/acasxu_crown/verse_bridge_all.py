@@ -284,7 +284,7 @@ class VerseBridge():
 
         self.plotter.clear()
         self.plotter.show_grid()
-        T = 20
+        T = 10
         #should define in plotter config instead
         Tv = 1
         ts = 0.01

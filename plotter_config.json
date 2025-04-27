@@ -8,5 +8,5 @@
     "num_sims": 15,
     "node_batch": false,
     "save": true,
-    "log_file": "boxes.txt"
+    "log_file": "demo1_10_1_001.txt"
 }
