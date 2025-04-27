@@ -28,3 +28,4 @@ out.csv
 results.csv
 *.prof
 test.py
+plotter_config.json

@@ -2,7 +2,7 @@
     "x_dim": 1,
     "y_dim": 2,
     "z_dim": 3,
-    "speed": 50,
+    "speed": 100,
     "time_step": 0.1,
     "time_horizon": 1.0,
     "num_sims": 15,

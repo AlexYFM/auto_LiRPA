@@ -279,7 +279,7 @@ class MainWindow(QMainWindow):
                 border: 2px solid #2980b9;
             }
         """)
-        #self.file_input.setText("boxes_multi.txt")
+        self.file_input.setText("boxes.txt")
         
         # Setup buttons 
         self.setup_buttons()
@@ -815,14 +815,21 @@ class MainWindow(QMainWindow):
 
             #self.thread = Thread(target=preprocess_file, args = [self.plotter, file_path])
 
+            verse.plotter.plotter3D.offset = 0
+            verse.plotter.plotter3D.prev_time = 0
 
+            verse.plotter.plotter3D.plotted = []
+            verse.plotter.plotter3D.not_plotted = []
             #self.run_plotter_in_thread( file_path)
+
             preprocess_file(self.plotter, file_path)
 
             self.timeline_slider.show()
             self.timeline_slider.raise_()
             verse.plotter.plotter3D.load_time = float(max_time)
 
+            
+           
 
 
         else:
