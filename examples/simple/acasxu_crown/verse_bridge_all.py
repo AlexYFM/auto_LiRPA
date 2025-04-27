@@ -114,11 +114,19 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> List[Tuple[torch
 
     arho_min = np.inf # does this make sense
     arho_max = -np.inf
+    arho_pi_wrap = []
+    arho_origin_wrap = []
     for own_vert in own_ext:
         for int_vert in int_ext:
-            arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi)
-            arho_max = max(arho_max, arho)
-            arho_min = min(arho_min, arho)
+            # arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi) 
+            # arho_max = max(arho_max, arho)
+            # arho_min = min(arho_min, arho)
+            arho_pi_wrap.append(wrap_to_pi(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0])))
+            arho_origin_wrap.append(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi))
+    if max(arho_origin_wrap)-min(arho_origin_wrap)<max(arho_pi_wrap)-min(arho_pi_wrap):
+        arho_min, arho_max = min(arho_origin_wrap), max(arho_origin_wrap)
+    else:
+        arho_min, arho_max = min(arho_pi_wrap), max(arho_pi_wrap)
 
     theta_min = wrap_to_pi((2*np.pi-own_set[1][3])+arho_min)
     theta_max = wrap_to_pi((2*np.pi-own_set[0][3])+arho_max) 

@@ -215,14 +215,14 @@ if __name__ == "__main__":
         # initial_state=[[-1, -1010, -1, np.pi/3, np.pi/6, 100], [1, -990, 1, np.pi/3, np.pi/6, 100]],
         # initial_state=[[0, -1000, 0, np.pi/3, np.pi/6, 100], [0, -1000, 0, np.pi/3, np.pi/6, 100]],
         # initial_state=[[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]],
-        initial_state = [[-2, -2, -2, np.pi, np.pi/6, 100], [-1,0, -1, np.pi, np.pi/6, 100]],
+        initial_state = [[-2, -1, -2, np.pi, np.pi/6, 100], [-1,1, -1, np.pi, np.pi/6, 100]],
         initial_mode=(AgentMode.COC, )
     )
     car2.set_initial(
         # initial_state=[[-2000, 0, 1000, 0,0, 100], [-2000, 0, 1000, 0,0, 100]],
         # initial_state=[[-2001, -10, 999, 0,0, 100], [-1999, 10, 1001, 0,0, 100]],
         # initial_state=[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]],
-        initial_state= [[-1001, -1, 999, 0,0, 100], [-999, 2, 1000, 0,0, 100]],
+        initial_state= [[-1001, -1, 499, 0,0, 100], [-999, 1, 500, 0,0, 100]],
         initial_mode=(AgentMode.COC, )
     )
     T = 10
@@ -259,7 +259,7 @@ if __name__ == "__main__":
             acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
             x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
             x = (x_l+x_u)/2
-            # print(reachset)
+            print(reachset)
             last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
             for tau_idx in range(tau_idx_min, tau_idx_max+1):
                 lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
@@ -267,7 +267,7 @@ if __name__ == "__main__":
                 ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
                 bounded_x = BoundedTensor(x, ptb=ptb_x)
                 lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
-                # print(f'\n Own Advisory ranges:', lb, ub,'\n')
+                print(f'\n Own Advisory ranges:', lb, ub,'\n')
 
                 # new_mode = np.argmax(ub.numpy())+1 # will eventually be a list/need to check upper and lower bounds
                 new_mode = np.argmin(lb.numpy())+1 # will eventually be a list/need to check upper and lower bounds
@@ -285,8 +285,8 @@ if __name__ == "__main__":
         int_modes = set()
         int_reachsets = get_acas_reach(np.array(int_state)[:,1:], np.array(own_state)[:,1:])
         tau_idx_min_int, tau_idx_max_int = get_tau_idx(int_state[1][1:], own_state[0][1:]), get_tau_idx(int_state[0][1:], own_state[1][1:]) 
-        print('Tau own:',tau_idx_min, tau_idx_max)
-        print('Tau int:',tau_idx_min_int, tau_idx_max_int)
+        # print('Tau own:',tau_idx_min, tau_idx_max)
+        # print('Tau int:',tau_idx_min_int, tau_idx_max_int)
         # print(reachsets)
         for reachset in int_reachsets:
             if len(int_modes)==5: # if all modes are possible, stop iterating
