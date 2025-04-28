@@ -423,9 +423,10 @@ class VerseBridge():
                         acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
                         last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                         ads = models[last_cmd-1][tau_idx](acas_state.float().view(1,5)).detach().numpy()
-                        print(f'{own_id} \nAdvisory scores:', ads,'\n')
+                        # print(f'{own_id} \nAdvisory scores:', ads,'\n')
                         new_mode = np.argmin(ads[0])+1 # will eventually be a list
                         all_modes[own_id] = new_mode
+                    
                     
                     for id in agent_ids:
                         cur_mode = AgentMode(all_modes[id]) if id in acas_agent_ids else AgentMode.COC
@@ -433,7 +434,9 @@ class VerseBridge():
                             id, [states[id] for _ in range(2)], (cur_mode,) # np array may not work
                         )
                         ### ADDS POINT LABELS
-                        #self.plotter.add_point_labels(states[id][0:3], [cur_mode.name], always_visible=True, font_size=10)
+                        if id in acas_agent_ids and getattr(AgentMode, cur_node.mode[id][0]) != cur_mode:
+                            # print(f'{id} Modes {getattr(AgentMode, cur_node.mode[own_id][0])}, {cur_mode}')
+                            self.plotter.add_point_labels(states[id][0:3], [cur_mode.name], always_visible=True, font_size=10)
                     node_id += 1
                     new_trace = scenario.simulate(Tv, ts, self.plotter)
                     temp_root = new_trace.root
