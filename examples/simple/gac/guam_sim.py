@@ -178,9 +178,9 @@ if __name__ == "__main__":
         initial_state=[dubins_to_guam_2d([-2000, 0, 0, 100]), dubins_to_guam_2d([-2000, 0, 0, 100])],
         initial_mode=([AgentMode.COC])
     )
-    T = 20
+    T = 10
     Tv = 1
-    ts = 0.1
+    ts = 0.01
     N = 1
     models = [torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth") for net in range(5)]
     scenario.config.print_level = 0
@@ -191,8 +191,12 @@ if __name__ == "__main__":
 
     for i in range(N):
         scenario.set_init(
-            [[dubins_to_guam_2d([-100, -1100, np.pi/3, 100]), dubins_to_guam_2d([100, -900, np.pi/3, 100])], 
-             [dubins_to_guam_2d([-2000, 0, 0, 100]), dubins_to_guam_2d([-2000, 0, 0, 100])]],
+            # [[dubins_to_guam_2d([-100, -1100, np.pi/3, 100]), dubins_to_guam_2d([100, -900, np.pi/3, 100])], 
+            #  [dubins_to_guam_2d([-2000, 0, 0, 100]), dubins_to_guam_2d([-2000, 0, 0, 100])]],
+            # [[-2, -1, np.pi, 100], [-1,1,  np.pi,  100]]
+            # [[-1001, -1, 0, 100], [-999, 1,  0, 100]]
+            [[dubins_to_guam_2d([-2, -1, np.pi, 100]), dubins_to_guam_2d([-1,1,  np.pi,  100])],
+            [dubins_to_guam_2d([-1001, -1, 0, 100]), dubins_to_guam_2d([-999, 1,  0, 100])]],
             [(AgentMode.COC,), (AgentMode.COC,)]
         )
         trace = scenario.simulate(Tv, ts) # this is the root
