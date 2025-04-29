@@ -181,6 +181,8 @@ def get_final_states_verify(n) -> Tuple[List]:
 def get_point_tau(own_state: np.ndarray, int_state: np.ndarray) -> float:
     z_own, z_int = own_state[2], int_state[2]
     vz_own, vz_int = own_state[-1]*np.sin(own_state[-2]), int_state[-1]*np.sin(int_state[-2])
+    if (vz_own == vz_int) and abs(z_int-z_int)<100:
+        return 0
     return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
 
 def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray) -> int:
@@ -215,14 +217,16 @@ if __name__ == "__main__":
         # initial_state=[[-1, -1010, -1, np.pi/3, np.pi/6, 100], [1, -990, 1, np.pi/3, np.pi/6, 100]],
         # initial_state=[[0, -1000, 0, np.pi/3, np.pi/6, 100], [0, -1000, 0, np.pi/3, np.pi/6, 100]],
         # initial_state=[[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]],
-        initial_state = [[-2, -1, -2, np.pi, np.pi/6, 100], [-1,1, -1, np.pi, np.pi/6, 100]],
+        # initial_state = [[-2, -1, -2, np.pi, np.pi/6, 100], [-1,1, -1, np.pi, np.pi/6, 100]],
+        initial_state = [[-1, -1, -2, np.pi, 0, 100], [-1,-1, -2, np.pi, 0, 100]],
         initial_mode=(AgentMode.COC, )
     )
     car2.set_initial(
         # initial_state=[[-2000, 0, 1000, 0,0, 100], [-2000, 0, 1000, 0,0, 100]],
         # initial_state=[[-2001, -10, 999, 0,0, 100], [-1999, 10, 1001, 0,0, 100]],
         # initial_state=[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]],
-        initial_state= [[-1001, -1, 499, 0,0, 100], [-999, 1, 500, 0,0, 100]],
+        # initial_state= [[-1001, -1, 499, 0,0, 100], [-999, 1, 500, 0,0, 100]],
+        initial_state= [[-1001, -1, -2, 0,0, 100], [-1001, -1, -2, 0,0, 100]],
         initial_mode=(AgentMode.COC, )
     )
     T = 10
@@ -285,8 +289,8 @@ if __name__ == "__main__":
         int_modes = set()
         int_reachsets = get_acas_reach(np.array(int_state)[:,1:], np.array(own_state)[:,1:])
         tau_idx_min_int, tau_idx_max_int = get_tau_idx(int_state[1][1:], own_state[0][1:]), get_tau_idx(int_state[0][1:], own_state[1][1:]) 
-        # print('Tau own:',tau_idx_min, tau_idx_max)
-        # print('Tau int:',tau_idx_min_int, tau_idx_max_int)
+        print('Tau own:',tau_idx_min, tau_idx_max)
+        print('Tau int:',tau_idx_min_int, tau_idx_max_int)
         # print(reachsets)
         for reachset in int_reachsets:
             if len(int_modes)==5: # if all modes are possible, stop iterating

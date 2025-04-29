@@ -170,6 +170,8 @@ def get_final_states_verify(n: 'AnalysisTreeNode', agent_ids: List) -> Dict[str,
 def get_point_tau(own_state: np.ndarray, int_state: np.ndarray) -> float:
     z_own, z_int = own_state[2], int_state[2]
     vz_own, vz_int = own_state[-1]*np.sin(own_state[-2]), int_state[-1]*np.sin(int_state[-2])
+    if (vz_own == vz_int) and abs(z_int-z_int)<100:
+        return 0
     return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
 
 def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray) -> int:
@@ -219,13 +221,22 @@ class VerseBridge():
 
         # Below is equivalent to multi_own
 
+        # [[-1001, 1, 999, 0,0, 100], [-999, 2, 1000, 0,0, 100]]
+
         # self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
         # self.addInitialSet("car1", [[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]])
+        
         # [[-2, -2, -2, np.pi, np.pi/6, 100], [-1,-1, -1, np.pi, np.pi/6, 100]]
+        # [[-1001, 19, 499, 0,0, 100], [-999, 20, 500, 0,0, 100]]
+
+        # [[-2, -1, -2, np.pi, np.pi/6, 100], [-1,1, -1, np.pi, np.pi/6, 100]]
+        #  [[-1001, -1, 499, 0,0, 100], [-999, 1, 500, 0,0, 100]]
+
+        # [[-2, -1, -2, np.pi, 0, 100], [-1,1, -2, np.pi, 0, 100]]
+        #  [[-1001, -1, -2, 0,0, 100], [-999, 1, -1, 0,0, 100]]
 
         # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
         # self.addInitialSet("car2",[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]])
-        # [[-1001, 1, 999, 0,0, 100], [-999, 2, 1000, 0,0, 100]]
         # self.addInitialSet("car2",[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]])
 
 
