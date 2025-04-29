@@ -279,7 +279,7 @@ class MainWindow(QMainWindow):
                 border: 2px solid #2980b9;
             }
         """)
-        self.file_input.setText("boxes.txt")
+        #self.file_input.setText("boxes.txt")
         
         # Setup buttons 
         self.setup_buttons()
@@ -759,7 +759,7 @@ class MainWindow(QMainWindow):
             self.thread = None
         self.plotter.clear()
         self.update_status("Stopped Verse")
-    def get_max_time_from_data(self, file_path, verify):
+    def get_max_time_from_data(self, file_path):
         """Get the maximum time value from the file (last value of last line)"""
         max_time = 0
         
@@ -768,10 +768,12 @@ class MainWindow(QMainWindow):
                 lines = file.readlines()
                 if lines:
                     # Get the last line
-                    if(verify):
-                        last_line = lines[-1].strip()
-                    else:
-                        last_line = lines[-3].strip()
+                    j = -1
+
+                    last_line = lines[j].strip()
+                    while last_line[-2:] == "-1":
+                        j-=1
+                        last_line = lines[j].strip()
                     if last_line:
                         # Split the line and get the last value
                         parts = last_line.split()
@@ -792,6 +794,10 @@ class MainWindow(QMainWindow):
 
     def handle_inputs(self, verify):
         # Check if file input has content
+
+        if  hasattr(self, 'timeline_slider'):
+
+            self.timeline_slider.hide()
         file_path = self.file_input.text().strip()
         if file_path:
             # If file specified, load boxes
@@ -800,8 +806,8 @@ class MainWindow(QMainWindow):
             self.plotter.show_grid(all_edges=True)
 
 
-            max_time = self.get_max_time_from_data(file_path, verify)
-            print(f"Max time from file: {max_time}")
+            max_time = self.get_max_time_from_data(file_path)
+            #print(f"Max time from file: {max_time}")
             
             # Setup the slider with the appropriate range
             if not hasattr(self, 'timeline_slider'):
@@ -833,9 +839,7 @@ class MainWindow(QMainWindow):
 
 
         else:
-            if  hasattr(self, 'timeline_slider'):
 
-                self.timeline_slider.hide()
 
 
             if os.path.exists('plotter_config.json'):

@@ -322,7 +322,7 @@ class RightOverlay(QWidget):
         self.dimensions_label = self.create_label("Dimensions:", 30, 110, bold=True)
         
         self.x_dim_label = self.create_label("X:", 110, 110)
-        self.x_dim_input = self.create_spinbox(130, 110, 0, 10, 0)
+        self.x_dim_input = self.create_spinbox(130, 110, 0, 9999, 0)
         
         self.y_dim_label = self.create_label("Y:", 190, 110)
         self.y_dim_input = self.create_spinbox(210, 110, 0, 9999, 1)
