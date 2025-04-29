@@ -17,6 +17,9 @@ from torch import nn
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import PerturbationLpNorm
 import time
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from stanleybak_closed_loop.acasxu_dubins import State, state7_to_state5
 
 class AgentMode(Enum):
     COC = auto()
@@ -56,6 +59,8 @@ def get_final_states_sim(n) -> Tuple[List]:
 def get_point_tau(own_state: np.ndarray, int_state: np.ndarray) -> float:
     z_own, z_int = own_state[2], int_state[2]
     vz_own, vz_int = own_state[-1]*np.sin(own_state[-2]), int_state[-1]*np.sin(int_state[-2])
+    if (vz_own == vz_int) and abs(z_int-z_int)<100:
+        return 0
     return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
 
 def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray) -> int:
@@ -86,7 +91,7 @@ if __name__ == "__main__":
     T = 20
     Tv = 1
     ts = 0.01
-    N = 10
+    N = 1
     # observation: for Tv = 0.1 and a larger initial set of radius 10 in y dim, the number of 
 
     scenario.config.print_level = 0
@@ -124,7 +129,6 @@ if __name__ == "__main__":
             cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
             own_state, int_state = get_final_states_sim(cur_node)
             acas_state = get_acas_state(own_state[1:], int_state[1:]).float()
-
             '''
             Weirdness with ACAS: due to wrapping, slight deviations of theta around pi lead to huge changes in the advisories of int and own:
             Since theta_int = -theta_own (acas-wise), a slight deviation in theta around pi leads to stuff like theta_int ~= pi and theta_own ~= -pi,
@@ -136,7 +140,16 @@ if __name__ == "__main__":
             last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string
             tau_idx = get_tau_idx(own_state[1:], int_state[1:])
             ads = models[last_cmd-1][tau_idx](acas_state.view(1,5)).detach().numpy()
-            # print(f'Own advisory scores: {ads}')
+
+            sb_state = [own_state[i+1] for i in [0,1,3]]+[int_state[i+1] for i in [0,1,3]]+[0]
+            s = State(sb_state, tau_idx, -1, 100, 100, last_cmd-1)
+            sb_ads, sb_norm_acas = s.update_command()
+            print(f'own sb acas : {state7_to_state5(s.vec, s.v_own, s.v_int)}')
+            print(f'Own acas state {get_acas_state(own_state[1:], int_state[1:]).numpy()}\n')
+            print(f'own sb acas norm: {sb_norm_acas}')
+            print(f'Own acas state norm: {acas_state}\n')
+            print(f'Own sb advisory scores: {sb_ads}')
+            print(f'Own advisory scores: {ads}\n\n')
             new_mode = np.argmin(ads[0])+1 # will eventually be a list
 
             last_cmd_2 = getattr(AgentMode, cur_node.mode['car2'][0]).value
