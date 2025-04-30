@@ -23,6 +23,7 @@ from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import PerturbationLpNorm
 import itertools
 from verse.plotter.plotter3D import plotRemaining
+from acas_utils import *
 
 class AgentMode(Enum):
     COC = auto()
@@ -434,7 +435,12 @@ class VerseBridge():
                         acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
                         last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                         ads = models[last_cmd-1][tau_idx](acas_state.float().view(1,5)).detach().numpy()
-                        # print(f'{own_id} \nAdvisory scores:', ads,'\n')
+                        
+                        print(f'{own_id} Advisory scores:', ads,'\n ACAS states:', acas_states[closest_id])
+                        sb_ads, sb_acas, _ = check_sb(states[own_id], states[closest_id], tau_idx, last_cmd)
+                        print(f'{own_id} SB advisory scores:', sb_ads, f'\n\n SB ACAS states', sb_acas)
+
+
                         new_mode = np.argmin(ads[0])+1 # will eventually be a list
                         all_modes[own_id] = new_mode
                     

@@ -88,7 +88,7 @@ if __name__ == "__main__":
     car = CarAgent('car1', file_name=input_code_name)
     car2 = CarAgent('car2',file_name=input_code_name)
     scenario = Scenario(ScenarioConfig(parallel=False))
-    T = 20
+    T = 10
     Tv = 1
     ts = 0.01
     N = 1
@@ -112,10 +112,12 @@ if __name__ == "__main__":
     traces = []
     for i in range(N):
         scenario.set_init(
+            [[[-2, -1, -2, np.pi, np.pi/6, 100], [-1,1, -1, np.pi, np.pi/6, 100]],
+            [[-1001, -1, 499, 0,0, 100], [-999, 1, 500, 0,0, 100]]],
             # [[[0, 0, 0, np.pi, np.pi/6, 100], [0, 0, 0, np.pi, np.pi/6, 100]],
-            [[[-100, -100, 0, np.pi, np.pi/6, 100], [100, 100, 0, np.pi, np.pi/6, 100]],
-            #   [[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]]],
-                [[-4000, 0, 1000, 0,0, 100], [-4000, 0, 1000, 0,0, 100]]],
+            # [[[-100, -100, 0, np.pi, np.pi/6, 100], [100, 100, 0, np.pi, np.pi/6, 100]],
+            # #   [[-2001, -1, 999, 0,0, 100], [-1999, 1, 1001, 0,0, 100]]],
+            #     [[-4000, 0, 1000, 0,0, 100], [-4000, 0, 1000, 0,0, 100]]],
             [(AgentMode.COC,  ), (AgentMode.COC,  )]
         )
         trace = scenario.simulate(Tv, ts) # this is the root

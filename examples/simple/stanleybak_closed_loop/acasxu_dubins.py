@@ -88,7 +88,15 @@ def network_index(alpha_prev:int, tau: float):
     assert tau_index >= 0, f"tau_index not found for tau = {tau}?"
 
     return len(tau_list) * alpha_prev + tau_index
-    
+
+
+def network_index_tau_idx(alpha_prev:int, tau_idx: int):
+    """get network index"""
+
+    tau_list = [0, 1, 5, 10, 20, 50, 60, 80, 100]
+
+    return len(tau_list) * alpha_prev + tau_idx
+
 'Lru Cache.'
 def get_time_elapse_mat(command1, dt, command2=0):
     '''get the matrix exponential for the given command
@@ -235,13 +243,15 @@ class State:
 
     time_elapse_mats = init_time_elapse_mats(dt)
 
-    def __init__(self, init_vec, tau_init=0, tau_dot=0, v_own=800, v_int=500, command = 0, save_states=False):
+    def __init__(self, init_vec, tau_idx=0, tau_dot=0, v_own=800, v_int=500, command = 0, save_states=False, tau_init=0):
         assert len(init_vec) == 7, "init vec should have length 7"
 
         assert tau_dot in [0, -1]
 
         self.tau_dot = tau_dot
         self.tau_init = tau_init
+        
+        self.tau_idx = tau_idx
         # tau_now = tau_init - self.vec[-1]
         
         self.vec = np.array(init_vec, dtype=float) # current state
@@ -560,7 +570,8 @@ class State:
         else:
             last_command = self.command
 
-            ni = network_index(last_command, self.tau_now())
+            # ni = network_index(last_command, self.tau_now())
+            ni = network_index_tau_idx(last_command, self.tau_idx)
             net = State.nets[ni]
 
             state = [rho, theta, psi, v_own, v_int]
