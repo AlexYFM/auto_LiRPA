@@ -23,6 +23,7 @@ from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import PerturbationLpNorm
 import itertools
 from verse.plotter.plotter3D import plotRemaining
+from acas_utils import *
 
 class AgentMode(Enum):
     COC = auto()
@@ -423,7 +424,6 @@ class VerseBridge():
                 while len(queue):
                     cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
                     states = get_final_states_sim(cur_node, agent_ids)
-                    # print(states)
                     all_modes = {}
                     for own_id in acas_agent_ids:
                         tau_idxs = {int_id: get_tau_idx(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}
@@ -434,7 +434,14 @@ class VerseBridge():
                         acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
                         last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                         ads = models[last_cmd-1][tau_idx](acas_state.float().view(1,5)).detach().numpy()
-                        # print(f'{own_id} \nAdvisory scores:', ads,'\n')
+                        
+                        # print(f'{own_id} Advisory scores:', ads,'\n ACAS states:', acas_states[closest_id].numpy(), '\n\n')
+                        # sb_ads, sb_acas, _ = check_sb(states[own_id], states[closest_id], tau_idx, last_cmd)
+                        # print(f'{own_id} SB advisory scores:', sb_ads, f'\n SB ACAS states', sb_acas, '\n\n\n')
+                        # print(f'Difference between own and SB advisory scores for {own_id}: {ads[0]-sb_ads}')
+                        # print(f'{own_id } acas staate: {acas_states[closest_id].numpy()} \n')
+                        # print(f'Tau idx: {tau_idx}')
+                        
                         new_mode = np.argmin(ads[0])+1 # will eventually be a list
                         all_modes[own_id] = new_mode
                     
