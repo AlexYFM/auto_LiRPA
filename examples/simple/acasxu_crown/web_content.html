@@ -401,6 +401,41 @@
             }
         }
 
+        function updatePlaneAttributes(x_px, y_px, size_px, yaw_rad) {
+                if (!selectedPlane) {
+                    console.warn("No plane is currently selected.");
+                    return;
+                }
+
+                const plane = selectedPlane;
+
+                // Update position
+
+                const newSize = Math.max(10, Math.min(50, size_px));
+                plane.style.width = `${newSize}px`;
+                plane.style.height = `${newSize}px`;
+                plane.style.lineHeight = `${newSize}px`;
+                plane.style.borderRadius = `${newSize / 2}px`;
+
+                const centerX = x_px; //+ (parseInt(plane.style.width) || 20) / 2;
+                const centerY = y_px; //+ (parseInt(plane.style.height) || 20) / 2;
+
+               
+
+                // Adjust position to maintain center alignment
+                plane.style.left = `${centerX - newSize / 2}px`;
+                plane.style.top = `${centerY - newSize / 2}px`;
+
+                // Update rotation
+                plane.style.transform = `rotate(${yaw_rad}rad)`;
+
+                // Update size record
+                planesSizes[plane.id] = newSize;
+
+                updateRotationHandlePosition();
+                saveAllPlanePositions();
+            }
+
         function updateRotationHandlePosition() {
             if (!selectedPlane) return;
 

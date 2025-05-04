@@ -284,6 +284,11 @@ class MainWindow(QMainWindow):
         # Setup buttons 
         self.setup_buttons()
 
+    def update_selected_plane_on_web(self, x, y, size, yaw):
+        """Update the currently selected plane in the web UI"""
+        js = f"updatePlaneAttributes({x}, {y}, {size}, {yaw});"
+        self.web_view.page().runJavaScript(js)
+
     def setup_sliders(self):
         """Setup container for altitude sliders with styling"""
         self.slider_container = QWidget(self.overlay_container)
@@ -301,10 +306,40 @@ class MainWindow(QMainWindow):
         """Update the initial set value for the currently selected agent"""
         if self.active_agent_id and self.active_agent_id in self.agents:
             initial_set = self.initial_set_input.text().strip()
- 
             self.agents[self.active_agent_id]['init_set'] =  initial_set
             # Call the bridge method to update the initial set
             self.update_status(f"Updated initial set for {self.active_agent_id}: {initial_set}")
+
+            if initial_set.startswith('[') and initial_set.endswith(']'):
+                # Safely evaluate the string
+                data = eval(initial_set, {"np": np, "__builtins__": {}})
+                data = np.array(data)
+
+                # Sanity check shape
+                if data.shape != (2, 6):
+                    raise ValueError("Initial set must be a 2x6 array")
+
+                # Get center values
+                x_center = (data[0][0] + data[1][0]) / 2
+                y_center = (data[0][1] + data[1][1]) / 2
+                z_center = (data[0][2] + data[1][2]) / 2
+
+
+                self.active_slider.setValue(int((z_center -290)/(-3)) )
+
+                yaw_center = data[0][3] + data[1][3] / 2
+
+                # Approximate size based on X and Y span
+                size = ((data[1][0] - data[0][0]) + (data[1][1] - data[0][1])) / 2
+
+                # Convert to pixel-space used by web
+                x_px = int(x_center / 6)
+                y_px = 350 - int((y_center) / 6)
+                size_px = int(min(max(size, 10), 50))
+
+                # Update the selected plane in web view
+                self.update_selected_plane_on_web(x_px, y_px, size_px, yaw_center)
+ 
 
     def update_agent_type(self, agent_type):
         """Update the agent type for the currently selected agent"""
@@ -699,7 +734,7 @@ class MainWindow(QMainWindow):
         with open( os.path.join(script_dir, "web_content.html" ),  'r') as file:  # r to open file in READ mode
             return file.read()
          
-        
+    
     def toggle_overlay(self):
         self.overlay_visible = not self.overlay_visible
         
@@ -805,7 +840,6 @@ class MainWindow(QMainWindow):
 
             self.plotter.show_grid(all_edges=True)
 
-
             max_time = self.get_max_time_from_data(file_path)
             #print(f"Max time from file: {max_time}")
             
@@ -834,14 +868,7 @@ class MainWindow(QMainWindow):
             self.timeline_slider.raise_()
             verse.plotter.plotter3D.load_time = float(max_time)
 
-            
-           
-
-
         else:
-
-
-
             if os.path.exists('plotter_config.json'):
                 with open('plotter_config.json', 'r') as f:
                     config = json.load(f)
@@ -863,6 +890,7 @@ class MainWindow(QMainWindow):
             for id in self.agents:
                 d = self.agents[id]
                 if(d['init_set'] == ''):
+                    print(d)
                     self.verse_bridge.updatePlane( id= id, x =d['x'],y =d['y'], z= 300 - 3*d['altitude']-10, radius= d['size'], pitch=0,yaw=d['yaw'], v=100, agent_type=d["agent_type"], dl = (None if d["dl"] == "None" else d["dl"]) )
                 else:
 
