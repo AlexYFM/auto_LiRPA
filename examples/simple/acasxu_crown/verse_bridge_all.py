@@ -23,7 +23,7 @@ from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import PerturbationLpNorm
 import itertools
 from verse.plotter.plotter3D import plotRemaining
-from acas_utils import *
+from acas_utils import check_sb
 
 class AgentMode(Enum):
     COC = auto()
@@ -171,8 +171,10 @@ def get_final_states_verify(n: 'AnalysisTreeNode', agent_ids: List) -> Dict[str,
 def get_point_tau(own_state: np.ndarray, int_state: np.ndarray) -> float:
     z_own, z_int = own_state[2], int_state[2]
     vz_own, vz_int = own_state[-1]*np.sin(own_state[-2]), int_state[-1]*np.sin(int_state[-2])
-    if (vz_own == vz_int) and abs(z_int-z_int)<100:
+    if (vz_own == vz_int) and abs(z_own-z_int)<100:
         return 0
+    elif vz_own == vz_int:
+        return np.inf
     return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
 
 def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray) -> int:
@@ -219,7 +221,16 @@ class VerseBridge():
 
         # self.updatePlane(id="car3", agent_type="NPC" )
         # self.addInitialSet("car3",[[1999, -1, 999, np.pi,0, 100], [2001, 1, 1001, np.pi,0, 100]])
+        # [[-1, -1001, -1, np.pi/3, np.pi/6, 100], [1, -999, 1, np.pi/3, np.pi/6, 100]]
+        # [[-2001, 99, 999, 0,0, 100], [-1999, 101, 1001, 0,0, 100]]
+        # [[1999, -1, 499, np.pi,0, 100], [2001, 1, 501, np.pi,0, 100]]
+        
+        # [[-1, -1001, -1, np.pi/2, np.pi/6, 100], [1, -999, 1, np.pi/2, np.pi/6, 100]]
+        # [[1199, -1, 649, np.pi,0, 100], [1201, 1, 651, np.pi,0, 100]]
+        # [[-2001, 299, 849, 0,0, 100], [-1999, 301, 851, 0,0, 100]]
 
+        # [[-10, -1010, -1, np.pi/2, np.pi/6, 100], [10, -990, 1, np.pi/2, np.pi/6, 100]] -- larger initial set
+        
         # Below is equivalent to multi_own
 
         # [[-1001, 1, 999, 0,0, 100], [-999, 2, 1000, 0,0, 100]]
@@ -228,13 +239,10 @@ class VerseBridge():
         # self.addInitialSet("car1", [[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]])
         
         # [[-2, -2, -2, np.pi, np.pi/6, 100], [-1,-1, -1, np.pi, np.pi/6, 100]]
-        # [[-1001, 19, 499, 0,0, 100], [-999, 20, 500, 0,0, 100]]
+        # [[-1001, 19, 498, 0,0, 100], [-999, 20, 501, 0,0, 100]]
 
-        # [[-2, -1, -2, np.pi, np.pi/6, 100], [-1,1, -1, np.pi, np.pi/6, 100]]
-        #  [[-1001, -1, 499, 0,0, 100], [-999, 1, 500, 0,0, 100]]
-
-        # [[-2, -1, -2, np.pi, 0, 100], [-1,1, -2, np.pi, 0, 100]]
-        #  [[-1001, -1, -2, 0,0, 100], [-999, 1, -1, 0,0, 100]]
+        # [[-2, -1, -2, np.pi, np.pi/6, 100], [-1,1,-1, np.pi, np.pi/6, 100]]
+        #  [[-1001, -1, 499, 0,0, 100], [-999, 2, 500, 0,0, 100]]
 
         # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
         # self.addInitialSet("car2",[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]])
@@ -272,7 +280,7 @@ class VerseBridge():
         if(id in self.agents):
             self.agents.pop(id)
 
-    def run_verse(self, ax= None, time_horizon=80, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0, verify=True):
+    def run_verse(self, ax= None, time_horizon=20, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0, verify=True):
         scenario = Scenario(ScenarioConfig( parallel=False))
         agent_ids = list(self.agents.keys())
         acas_agent_ids = []
@@ -304,7 +312,8 @@ class VerseBridge():
 
         self.plotter.clear()
         self.plotter.show_grid()
-        T = 10
+        # T = 10
+        T = time_horizon
         #should define in plotter config instead
         Tv = 1
         ts = 0.01
@@ -355,7 +364,7 @@ class VerseBridge():
                             acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
                             x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
                             x = (x_l+x_u)/2
-                            print(f'{own_id}-{id} {reachset}')
+                            # print(f'{own_id}-{id} {reachset}')
                             last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                             for tau_idx in range(tau_idx_min[id], tau_idx_max[id]+1):
                                 lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
@@ -364,7 +373,7 @@ class VerseBridge():
                                 bounded_x = BoundedTensor(x, ptb=ptb_x)
                                 lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
 
-                                print(f'\n {own_id} Advisory ranges:', lb, ub,'\n')
+                                # print(f'\n {own_id} Advisory ranges:', lb, ub,'\n')
                                 new_mode = np.argmin(lb.numpy())+1                             
                                 new_modes = []
                                 for i in range(len(ub.numpy()[0])):
@@ -430,15 +439,16 @@ class VerseBridge():
                         acas_states = {int_id: get_acas_state(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}                    
                         closest_id = min(acas_states, key=lambda k:acas_states[k][0])
                         tau_idx = tau_idxs[closest_id]
+                        # print('Tau idx:',tau_idx)
                         acas_state = acas_states[closest_id]
                         acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
                         last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                         ads = models[last_cmd-1][tau_idx](acas_state.float().view(1,5)).detach().numpy()
                         
-                        # print(f'{own_id} Advisory scores:', ads,'\n ACAS states:', acas_states[closest_id].numpy(), '\n\n')
-                        # sb_ads, sb_acas, _ = check_sb(states[own_id], states[closest_id], tau_idx, last_cmd)
-                        # print(f'{own_id} SB advisory scores:', sb_ads, f'\n SB ACAS states', sb_acas, '\n\n\n')
-                        # print(f'Difference between own and SB advisory scores for {own_id}: {ads[0]-sb_ads}')
+                        print(f'{own_id} Advisory scores:', ads,'\n ACAS states:', acas_states[closest_id].numpy(), '\n\n')
+                        sb_ads, sb_acas, _ = check_sb(states[own_id], states[closest_id], tau_idx, last_cmd)
+                        print(f'{own_id} SB advisory scores:', sb_ads, f'\n SB ACAS states', sb_acas, '\n\n')
+                        print(f'Difference between own and SB advisory scores for {own_id}: {ads[0]-sb_ads}\n\n')
                         # print(f'{own_id } acas staate: {acas_states[closest_id].numpy()} \n')
                         # print(f'Tau idx: {tau_idx}')
                         
