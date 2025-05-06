@@ -280,9 +280,9 @@ class AircraftAgent(BaseAgent):
             
             # HARDCODED FOR TESTING (4/21): ego_cmd = 0
             des_down = init_z+(vz*curr_t)
-            # print(f'Ref z own {des_down}, Ref vz own {vz}') # wrt to GUAM states
-            # ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd, des_down=des_down, des_vz=vz)
-            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd,des_down=0)
+            print(f'Ref z own {des_down}, Ref vz own {vz}, advisory: {ego_cmd}') # wrt to GUAM states
+            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd, des_down=des_down, des_vz=vz)
+            # ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd,des_down=0)
                 #print(f"state shape: {initGuamState.aircraft.shape}")
                 #print(f"quat: {initGuamState.aircraft[9:13]}")
                 #print(f"ref_input: {ref_input}")

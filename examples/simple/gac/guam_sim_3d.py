@@ -114,20 +114,6 @@ if __name__ == "__main__":
     Tv = 1
     ts = 0.1
     N = 1
-    car.set_initial(
-        # initial_state=[[0, -0.5, 0, 1.0], [0.01, 0.5, 0, 1.0]],
-        # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
-        # initial_state=[dubins_to_guam_3d([-100, -1000, -1, np.pi/3, 0, 100]), dubins_to_guam_3d([100, -900, 1, np.pi/3, 0, 100])],
-        initial_state=[dubins_to_guam_3d([-2, -1, 0, np.pi, np.pi/6, 100]), dubins_to_guam_3d([-1,1, 0, np.pi, np.pi/6, 100])],
-        initial_mode=([AgentMode.COC])
-    )
-    car2.set_initial(
-        # initial_state=[[15, 15, 0, 0.5], [15, 15, 0, 0.5]],
-        # initial_state=[dubins_to_guam_3d([-2001, -1, -999, 0,0, 100]), dubins_to_guam_3d([-1999, 1, -1001, 0,0, 100])],
-        initial_state=[dubins_to_guam_3d([-1001, -1, 0, 0,0, 100]), dubins_to_guam_3d([-999, 1, 0, 0,0, 100])],
-        initial_mode=([AgentMode.COC])
-    )
-    # models = [torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth") for net in range(5)]
     models = [[torch.load(f"./examples/simple/acasxu_crown/nets/ACASXU_run2a_{net + 1}_{tau + 1}_batch_2000.pth") for tau in range(9)] for net in range(5)]
     scenario.config.print_level = 0
     scenario.add_agent(car)
@@ -138,10 +124,10 @@ if __name__ == "__main__":
     for i in range(N):
         scenario.set_init(
             # [[dubins_to_guam_3d([0, -1000, -1, np.pi/3, np.pi/12, 100]), dubins_to_guam_3d([0, -1000, 1, np.pi/3, np.pi/12, 100])],
-            [[dubins_to_guam_3d([-2, -1, 0, np.pi, 0, 100]), dubins_to_guam_3d([-1,1, 0, np.pi, 0, 100])],
+            [[dubins_to_guam_3d([-2, -1000, 0, np.pi/3, np.pi/12, 100]), dubins_to_guam_3d([-1,-999, 0, np.pi/3, np.pi/12, 100])],
             # [[dubins_to_guam_3d([-100, -1000, -1, np.pi/3, 0, 100]), dubins_to_guam_3d([100, -900, 1, np.pi/3, 0, 100])],
-            #   [dubins_to_guam_3d([-2001, -1, 999, 0,0, 100]), dubins_to_guam_3d([-1999, 1, 1001, 0,0, 100])]],
-            [dubins_to_guam_3d([-1001, -1, 0, 0,0, 100]), dubins_to_guam_3d([-999, 1, 0, 0,0, 100])]],
+              [dubins_to_guam_3d([-2001, -1, 499, 0,0, 100]), dubins_to_guam_3d([-1999, 1, 501, 0,0, 100])]],
+            # [dubins_to_guam_3d([-1001, -1, 0, 0,0, 100]), dubins_to_guam_3d([-999, 1, 0, 0,0, 100])]],
             [(AgentMode.COC,), (AgentMode.COC,)]
         )
         trace = scenario.simulate(Tv, ts) # this is the root
@@ -156,7 +142,7 @@ if __name__ == "__main__":
             own_state, int_state = get_final_states_sim(cur_node)
             dub_own_state, dub_int_state = guam_to_dubins_3d(own_state[1:]), guam_to_dubins_3d(int_state[1:])
             tau_idx = get_tau_idx(dub_own_state, dub_int_state)
-            print(dub_own_state, dub_int_state)
+            print('Dubins own state:',dub_own_state, '\n Dubins int state:', dub_int_state)
             acas_state = get_acas_state(dub_own_state, dub_int_state).float()
             acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
             last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
@@ -164,8 +150,8 @@ if __name__ == "__main__":
             new_mode = np.argmin(ads[0])+1 # will eventually be a list
             car.set_initial(
                 initial_state=[own_state[1:], own_state[1:]],
-                # initial_mode=([AgentMode(new_mode)])
-                initial_mode=([AgentMode.COC])
+                initial_mode=([AgentMode(new_mode)])
+                # initial_mode=([AgentMode.COC])
             )
             car2.set_initial(
                 initial_state=[int_state[1:], int_state[1:]],

@@ -279,9 +279,9 @@ class AircraftAgent_Int(BaseAgent):
             int_cmd = 0 # CoC
             # ref_input = acas_reference_inputs(dt = self.dt, state = state, cmd = int_cmd)
             des_down = init_z+(vz*curr_t)
-            # print(f'Ref z {des_down}, vz int {vz}')
-            # ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = int_cmd, des_down=des_down, des_vz=-vz)
-            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd=int_cmd, des_down=0)
+            # print(f'Ref z int: {des_down}, vz int :{vz}')
+            ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = int_cmd, des_down=des_down, des_vz=vz)
+            # ref_input = acas_reference_inputs(dt = time_step, state = state, cmd=int_cmd, des_down=0)
             '''vel_bIc = np.array([0, 0, 0])
             pos_bii = np.array([0, 200, -10])
             ref_input = RefInputs(vel_bIc, pos_bii, Chi_des=np.array(0.0), Chi_dot_des=np.array(0.0))'''

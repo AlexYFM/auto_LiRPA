@@ -242,7 +242,7 @@ class VerseBridge():
         # [[-1001, 19, 498, 0,0, 100], [-999, 20, 501, 0,0, 100]]
 
         # [[-2, -1, -2, np.pi, np.pi/6, 100], [-1,1,-1, np.pi, np.pi/6, 100]]
-        #  [[-1001, -1, 499, 0,0, 100], [-999, 2, 500, 0,0, 100]]
+        #  [[-1001, -1, 499, 0,0, 100], [-999, 1, 500, 0,0, 100]]
 
         # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
         # self.addInitialSet("car2",[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]])
@@ -448,7 +448,11 @@ class VerseBridge():
                         print(f'{own_id} Advisory scores:', ads,'\n ACAS states:', acas_states[closest_id].numpy(), '\n\n')
                         sb_ads, sb_acas, _ = check_sb(states[own_id], states[closest_id], tau_idx, last_cmd)
                         print(f'{own_id} SB advisory scores:', sb_ads, f'\n SB ACAS states', sb_acas, '\n\n')
-                        print(f'Difference between own and SB advisory scores for {own_id}: {ads[0]-sb_ads}\n\n')
+                        np.set_printoptions(suppress=False)
+                        print(f'Difference between own and SB advisory scores for {own_id}: {ads[0]-sb_ads}')
+                        print(f'Difference between own and SB ACAS states for {own_id}: {acas_states[closest_id].numpy()-sb_acas}')
+                        np.set_printoptions(suppress=True)
+
                         # print(f'{own_id } acas staate: {acas_states[closest_id].numpy()} \n')
                         # print(f'Tau idx: {tau_idx}')
                         

@@ -63,6 +63,16 @@ from pathlib import Path
 from guam_sim import guam_to_dubins_2d, get_final_states_sim
 from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import QrotZ, quaternion_to_euler, euler_to_quaternion
 
+def dubins_to_guam_3d(state: List) -> List:
+    v = state[-1]
+    theta = np.pi/2-state[3]
+    psi = state[4]
+    # quat = QrotZ(theta)
+    quat = euler_to_quaternion(0,psi,theta)
+    x,y,z = state[0], state[1], state[2]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+    #      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, vy,vz, 0 , 0.0, 0.0, x, y, z,  float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]
+
 x_folder = "{}{}{}".format('batch_figures_good', os.sep, "x_pos")
 y_folder = "{}{}{}".format('batch_figures_good', os.sep, "y_pos")
 xy_folder = "{}{}{}".format('batch_figures_good', os.sep, "xy_pos")
@@ -150,16 +160,17 @@ for x_init_val in x_init_ego:
             quat = euler_to_quaternion(0, np.pi/12, 0)
             # quat = euler_to_quaternion(0, 0, 0)
             ac1.set_initial(
-                [
+    
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z,float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]           
-                ],
-                ([AgentMode.SR]),
-                # ([AgentMode.COC]),
+                    # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z,float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
+                    # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]           
+                    [dubins_to_guam_3d([-2, -1, 0, 0, 0, 100]), dubins_to_guam_3d([-1,1, 0, 0, 0, 100])],
+                    # [dubins_to_guam_3d([-2, -1000, 0, np.pi/3, np.pi/12, 100]), dubins_to_guam_3d([-1,-999, 0, np.pi/3, np.pi/12, 100])],
+                # ([AgentMode.SR]),
+                ([AgentMode.COC]),
             ) # scenario in slides -- working example 2 of ACAS Xu advisory
 
 
@@ -205,10 +216,14 @@ for x_init_val in x_init_ego:
             int_0_x = -2000
             int_0_y = 0
             int_0_z = -1000
+            quat2 = euler_to_quaternion(0, 0, 0)
             ac2.set_initial(
                 [
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0, int_0_x, int_0_y, int_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0, int_0_x, int_0_y, int_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+                    # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0, int_0_x, int_0_y, int_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0],
+                    # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0, int_0_x, int_0_y, int_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0,int_0_y, int_0_x, int_0_z, float(quat2[0]), float(quat2[1]), float(quat2[2]), float(quat2[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0,int_0_y, int_0_x, int_0_z, float(quat2[0]), float(quat2[1]), float(quat2[2]), float(quat2[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+                    # dubins_to_guam_3d([-2001, -1, 999, 0,0, 100]), dubins_to_guam_3d([-1999, 1, 1001, 0,0, 100])
                 ],
                 ([AgentMode.COC]),
             ) # scenario in slides -- working example 2 of ACAS Xu advisory
