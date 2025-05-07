@@ -215,16 +215,18 @@ if __name__ == "__main__":
     car.set_initial(
         # initial_state=[[0, -0.5, 0, 1.0], [0.01, 0.5, 0, 1.0]],
         # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
-        initial_state=[dubins_to_guam_2d([0, -1010, np.pi/3, 100]), dubins_to_guam_2d([0, -990, np.pi/3, 100])],
+        # initial_state=[dubins_to_guam_2d([0, -1010, np.pi/3, 100]), dubins_to_guam_2d([0, -990, np.pi/3, 100])],
         # initial_state=[dubins_to_guam_2d([-20, -1020, np.pi/3, 100]), dubins_to_guam_2d([20, -980, np.pi/3, 100])],
+        initial_state=[dubins_to_guam_2d([-2, -1, np.pi, 100]), dubins_to_guam_2d([-1,1,  np.pi,  100])],
         initial_mode=([AgentMode.COC])
     )
     car2.set_initial(
         # initial_state=[[15, 15, 0, 0.5], [15, 15, 0, 0.5]],
-        initial_state=[dubins_to_guam_2d([-2000, 0, 0, 100]), dubins_to_guam_2d([-2000, 0, 0, 100])],
+        # initial_state=[dubins_to_guam_2d([-2000, 0, 0, 100]), dubins_to_guam_2d([-2000, 0, 0, 100])],
+        initial_state=[dubins_to_guam_2d([-1001, -1, 0, 100]), dubins_to_guam_2d([-999, 1,  0, 100])],
         initial_mode=([AgentMode.COC])
     )
-    T = 50
+    T = 10
     Tv = 1
     ts = 0.1
     scenario.config.reachability_method = ReachabilityMethod.DRYVR_DISC
@@ -249,8 +251,9 @@ if __name__ == "__main__":
         dub_own_state, dub_int_state = guam_to_dubins_2d_set(own_state), guam_to_dubins_2d_set(int_state)
         # print(dub_own_state, dub_int_state)
         modes = set()
+        print('Dubins own state:',dub_own_state)
         reachsets = get_acas_reach(np.array(dub_own_state), np.array(dub_int_state))
-        # print(reachsets)
+        print(reachsets)
         for reachset in reachsets:
             if len(modes)==5: # if all modes are possible, stop iterating
                 break 

@@ -180,7 +180,7 @@ if __name__ == "__main__":
     )
     T = 10
     Tv = 1
-    ts = 0.01
+    ts = 0.1
     N = 1
     models = [torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth") for net in range(5)]
     scenario.config.print_level = 0

@@ -245,44 +245,55 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch
 
     arho_min = np.inf # does this make sense
     arho_max = -np.inf
+    arho_pi_wrap = []
+    arho_origin_wrap = []
     for own_vert in own_ext:
         for int_vert in int_ext:
-            arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi)
-            arho_max = max(arho_max, arho)
-            arho_min = min(arho_min, arho)
+            # arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi) 
+            # arho_max = max(arho_max, arho)
+            # arho_min = min(arho_min, arho)
+            arho_pi_wrap.append(wrap_to_pi(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0])))
+            arho_origin_wrap.append(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi))
+    
+    if max(arho_origin_wrap)-min(arho_origin_wrap)<max(arho_pi_wrap)-min(arho_pi_wrap):
+        arho_min, arho_max = min(arho_origin_wrap), max(arho_origin_wrap)
+    else:
+        arho_min, arho_max = min(arho_pi_wrap), max(arho_pi_wrap)
 
-    # there may be some weird bounds due to wrapping
-    # for now, adding 2pi to theta_max, psi_max if either are less than their resp mins
-    # in the future, need to partition reach into multiple theta_bounds if theta_max<theta_min
-    # for example, given t_min, t_max = pi-1, pi+1, instead of wrapping, need to have two bounds
-    # [pi-1,pi] and [-pi, -pi+1] -- would need to do this for psi as well
-    theta_min = wrap_to_pi((2*np.pi-own_set[1][2])+arho_min)
+    theta_min = wrap_to_pi((2*np.pi-own_set[1][2])+arho_min) # 2D adjustment
     theta_max = wrap_to_pi((2*np.pi-own_set[0][2])+arho_max) 
-    # theta_max = theta_max + 2*np.pi if theta_max<theta_min else theta_max
     theta_maxs = []
     theta_mins = []
     if theta_max<theta_min: # bound issue due to wrapping
-        theta_mins = [-np.pi, theta_max]
-        theta_maxs = [theta_min, np.pi]
+        theta_mins = [-np.pi, theta_min]
+        theta_maxs = [theta_max, np.pi]
     else:
         theta_mins = [theta_min]
         theta_maxs = [theta_max]
 
+    ## TODO: fix issue where theta min and max from dubins conversion not necessarily correct since quaternion to theta not a linear/increasing operation
     psi_min = wrap_to_pi(int_set[0][2]-own_set[1][2])
     psi_max = wrap_to_pi(int_set[1][2]-own_set[0][2])
     # psi_max = psi_max + 2*np.pi if psi_max<psi_min else psi_max
     psi_maxs = []
     psi_mins = []
+    print('Psis:', psi_min, psi_max,'\n Psi max>=psi min:', psi_max>=psi_min)
+    print(f'Checking theta own mins and maxes post conversion to dubins: {own_set[1][2]>=own_set[0][2]}')
+    print(f'Checking theta int mins and maxes post conversion to dubins: {int_set[1][2]>=int_set[0][2]}')
     if psi_max<psi_min: # bound issue due to wrapping
-        psi_mins = [-np.pi, psi_max]
-        psi_maxs = [psi_min, np.pi]
+        # psi_mins = [-np.pi, psi_min]
+        # psi_maxs = [psi_max, np.pi]
+        # this is a hack and not necessarily correct since not guaranteed that own_set_theta_min < own_set_theta_max
+        psi_mins = [psi_max]
+        psi_maxs = [psi_min]
     else:
         psi_mins = [psi_min]
         psi_maxs = [psi_max]
-
+    print('Psi after correction:', psi_mins, psi_maxs)
     sets = [(torch.tensor([d_min, theta_mins[i], psi_mins[j], own_set[0][3], int_set[0][3]]), 
              torch.tensor([d_max, theta_maxs[i], psi_maxs[j], own_set[1][3], int_set[1][3]])) for i in range(len(theta_mins)) for j in range(len(psi_mins))]
-    
+    return sets
+
 def get_final_states_sim(n, agent_ids: List) -> Dict[str, List]: 
     states = {id: n.trace[id][-1][1:] for id in agent_ids}
     # own_state = n.trace['car1'][-1]
@@ -362,21 +373,8 @@ class VerseBridge():
 
         # Below is equivalent to multi_own
 
-        # self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
-        # self.addInitialSet("car1", [[-1, -1, -1, np.pi, np.pi/6, 100], [1, 1, 1, np.pi, np.pi/6, 100]])
-        # [[-2, -2, -2, np.pi, np.pi/6, 100], [-1,-1, -1, np.pi, np.pi/6, 100]]
-
-        # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
-        # self.addInitialSet("car2",[[-1001, -1, 999, 0,0, 100], [-999, 1, 1000, 0,0, 100]])
-        # [[-1001, 1, 999, 0,0, 100], [-999, 2, 1000, 0,0, 100]]
-        # self.addInitialSet("car2",[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]])
-
-
-        # self.updatePlane(id="car1", agent_type="Car", dl ="controller_3d.py")
-        # self.addInitialSet("car1", [[-100, -100, -1, np.pi, np.pi/6, 100], [100, 100, 1, np.pi, np.pi/6, 100]])
-
-        # self.updatePlane(id='car2', agent_type="Car", dl='controller_3d.py')
-        # self.addInitialSet("car2",[[-4001, -1, 999, 0,0, 100], [-3999, 1, 1000, 0,0, 100]])
+            # [[-2, -1, np.pi, 100], [-1,1,  np.pi,  100]]
+            # [[-1001, -1, 0, 100], [-999, 1,  0, 100]]
 
     #uses input from from GUI
     def updatePlane(self, id="", agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
@@ -428,11 +426,11 @@ class VerseBridge():
 
             scenario.add_agent(plane) 
 
-            print(init_set)
+            # print(init_set)
             scenario.set_init_single(
                 id, [dubins_to_guam_2d(init_set[0]), dubins_to_guam_2d(init_set[1])], (init_mode,)
             )
-            print(init_set)
+            # print(init_set)
 
         self.plotter.clear()
         self.plotter.show_grid()
@@ -464,7 +462,7 @@ class VerseBridge():
                 cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
                 guam_states = get_final_states_verify(cur_node, agent_ids)
                 # print(f'HERE: {guam_states}')
-                states = {id: [guam_to_dubins_2d(guam_states[id][0]), guam_to_dubins_2d(guam_states[id][1])] for id in guam_states}
+                states = {id: np.array([guam_to_dubins_2d(guam_states[id][0]), guam_to_dubins_2d(guam_states[id][1])]) for id in guam_states}
                 # print(states)
                 all_modes = {}
                 for own_id in acas_agent_ids:
@@ -472,7 +470,7 @@ class VerseBridge():
                     # tau_idx_min = {int_id: min(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
                     # tau_idx_max = {int_id: max(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
                     reachsets = {int_id: get_acas_reach(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}
-                    
+                    print(reachsets)
                     closest_ids = []
                     closest_id = min(reachsets, key=lambda k:reachsets[k][0][0][0])
                     closest_dist_upper = reachsets[closest_id][0][1][0]

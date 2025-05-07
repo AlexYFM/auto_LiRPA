@@ -124,7 +124,7 @@ if __name__ == "__main__":
     for i in range(N):
         scenario.set_init(
             # [[dubins_to_guam_3d([0, -1000, -1, np.pi/3, np.pi/12, 100]), dubins_to_guam_3d([0, -1000, 1, np.pi/3, np.pi/12, 100])],
-            [[dubins_to_guam_3d([-2, -1000, 0, np.pi/3, np.pi/12, 100]), dubins_to_guam_3d([-1,-999, 0, np.pi/3, np.pi/12, 100])],
+            [[dubins_to_guam_3d([-2, -1000, 0, np.pi/3, 0, 100]), dubins_to_guam_3d([-1,-999, 0, np.pi/3, 0, 100])],
             # [[dubins_to_guam_3d([-100, -1000, -1, np.pi/3, 0, 100]), dubins_to_guam_3d([100, -900, 1, np.pi/3, 0, 100])],
               [dubins_to_guam_3d([-2001, -1, 499, 0,0, 100]), dubins_to_guam_3d([-1999, 1, 501, 0,0, 100])]],
             # [dubins_to_guam_3d([-1001, -1, 0, 0,0, 100]), dubins_to_guam_3d([-999, 1, 0, 0,0, 100])]],

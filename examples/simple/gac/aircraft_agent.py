@@ -243,6 +243,7 @@ class AircraftAgent(BaseAgent):
         trace = [[0]+state_arr]
         dub_state_arr = guam_to_dubins_3d(state_arr)
         vz = -dub_state_arr[-1]*np.sin(dub_state_arr[-2])
+        # vz = -50
         init_z = -dub_state_arr[2]
 
         for kk in range(T):
@@ -280,7 +281,7 @@ class AircraftAgent(BaseAgent):
             
             # HARDCODED FOR TESTING (4/21): ego_cmd = 0
             des_down = init_z+(vz*curr_t)
-            print(f'Ref z own {des_down}, Ref vz own {vz}, advisory: {ego_cmd}') # wrt to GUAM states
+            # print(f'Ref z own {des_down}, Ref vz own {vz}, advisory: {ego_cmd}') # wrt to GUAM states
             ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd, des_down=des_down, des_vz=vz)
             # ref_input = acas_reference_inputs(dt = time_step, state = state, cmd = ego_cmd,des_down=0)
                 #print(f"state shape: {initGuamState.aircraft.shape}")
