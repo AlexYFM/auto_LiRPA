@@ -62,14 +62,6 @@ def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor
     psi = wrap_to_pi(int_state[2]-own_state[2])
     return torch.tensor([dist, theta, psi, own_state[3], int_state[3]])
 
-def get_acas_state_torch(own_state: torch.Tensor, int_state: torch.Tensor) -> torch.Tensor:
-    def wtp(x: float): 
-        return torch.remainder((x + torch.pi), (2 * torch.pi)) - torch.pi
-    dist = torch.sqrt((own_state[0]-int_state[0])**2+(own_state[1]-int_state[1])**2)
-    theta = wtp((2*torch.pi-own_state[2])+torch.arctan2(int_state[1]-own_state[1], int_state[0]-own_state[0]))
-    psi = wtp(int_state[2]-own_state[2])
-    return torch.tensor([dist, theta, psi, own_state[3], int_state[3]])
-
 def dubins_to_guam_2d(state: List) -> List:
     v = state[-1]
     theta = np.pi/2-state[-2]
@@ -213,6 +205,7 @@ if __name__ == "__main__":
             # print(dub_own_state, dub_int_state)
             # acas_state = get_acas_state(own_state[1:], int_state[1:]).float()
             acas_state = get_acas_state(dub_own_state, dub_int_state).float()
+            print('ACAS State: ', acas_state)
             acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
             # ads = model(acas_state.view(1,5)).detach().numpy()
             last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
@@ -229,6 +222,7 @@ if __name__ == "__main__":
             #     [[own_state[1:], own_state[1:]], [int_state[1:], int_state[1:]]], # this should eventually be a range 
             #     [([AgentMode(new_mode)]),([AgentMode.COC])]
             # )
+            # print(f'New mode: {AgentMode(new_mode)}')
             car.set_initial(
                 initial_state=[own_state[1:], own_state[1:]],
                 initial_mode=([AgentMode(new_mode)])

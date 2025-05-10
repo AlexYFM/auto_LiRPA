@@ -50,18 +50,19 @@ tau_list = [0, 1, 5, 10, 20, 50, 60, 80, 100]
 
 def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor:
     dist = np.sqrt((own_state[0]-int_state[0])**2+(own_state[1]-int_state[1])**2)
-    theta = wrap_to_pi((2*np.pi-own_state[2])+np.arctan2(int_state[1]-own_state[1], int_state[0]-own_state[0]))
-    psi = wrap_to_pi(int_state[2]-own_state[2])
-    return torch.tensor([dist, theta, psi, own_state[3], int_state[3]])
+    theta = wrap_to_pi((2*np.pi-own_state[3])+np.arctan2(int_state[1]-own_state[1], int_state[0]-own_state[0]))
+    psi = wrap_to_pi(int_state[3]-own_state[3])
+    return torch.tensor([dist, theta, psi, own_state[-1], int_state[-1]])
 
 def dubins_to_guam_3d(state: List) -> List:
     v = state[-1]
     theta = np.pi/2-state[3]
     psi = state[4]
     # quat = QrotZ(theta)
-    quat = euler_to_quaternion(0,psi,theta)
+    quat = euler_to_quaternion(0,0,theta)
     x,y,z = state[0], state[1], state[2]
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+    climb_rate = -v*np.sin(psi)
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, climb_rate]
 
 # assuming time is not a part of the state
 def guam_to_dubins_3d(state: np.ndarray) -> List: 
@@ -76,13 +77,12 @@ def get_final_states_sim(n) -> Tuple[List]:
     int_state = n.trace['car2'][-1]
     return own_state, int_state
 
-def get_point_tau(own_state: np.ndarray, int_state: np.ndarray) -> float:
+def get_point_tau(own_state: np.ndarray, int_state: np.ndarray, vz_own, vz_int) -> float:
     z_own, z_int = own_state[2], int_state[2]
-    vz_own, vz_int = own_state[-1]*np.sin(own_state[-2]), int_state[-1]*np.sin(int_state[-2])
     return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
 
-def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray) -> int:
-    tau = get_point_tau(own_state, int_state)
+def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray, vz_own: float, vz_int: float) -> int:
+    tau = get_point_tau(own_state, int_state, vz_own, vz_int)
     # print(tau)
     if tau<0:
         return 0 # following Stanley Bak, if tau<0, return 0 -- note that Stanley Bak also ends simulation if tau<0
@@ -123,11 +123,13 @@ if __name__ == "__main__":
 
     for i in range(N):
         scenario.set_init(
-            # [[dubins_to_guam_3d([0, -1000, -1, np.pi/3, np.pi/12, 100]), dubins_to_guam_3d([0, -1000, 1, np.pi/3, np.pi/12, 100])],
-            [[dubins_to_guam_3d([-2, -1000, 0, np.pi/3, 0, 100]), dubins_to_guam_3d([-1,-999, 0, np.pi/3, 0, 100])],
+            [[dubins_to_guam_3d([0, -1000, -1, np.pi/3, np.pi/12, 100]), dubins_to_guam_3d([0, -1000, 1, np.pi/3, np.pi/12, 100])],
+            # [[dubins_to_guam_3d([-2, -1000, 0, np.pi/3, 0, 100]), dubins_to_guam_3d([-1,-999, 0, np.pi/3, 0, 100])],
             # [[dubins_to_guam_3d([-100, -1000, -1, np.pi/3, 0, 100]), dubins_to_guam_3d([100, -900, 1, np.pi/3, 0, 100])],
               [dubins_to_guam_3d([-2001, -1, 499, 0,0, 100]), dubins_to_guam_3d([-1999, 1, 501, 0,0, 100])]],
             # [dubins_to_guam_3d([-1001, -1, 0, 0,0, 100]), dubins_to_guam_3d([-999, 1, 0, 0,0, 100])]],
+            # [[dubins_to_guam_3d([-2, -1, 0, np.pi, 0,100]), dubins_to_guam_3d([-1,1,  0, np.pi,  0,100])],
+            # [dubins_to_guam_3d([-1001, -1, 0, 0, 0,100]), dubins_to_guam_3d([-999, 1,  0, 0, 0,100])]],
             [(AgentMode.COC,), (AgentMode.COC,)]
         )
         trace = scenario.simulate(Tv, ts) # this is the root
@@ -140,10 +142,11 @@ if __name__ == "__main__":
         while len(queue):
             cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
             own_state, int_state = get_final_states_sim(cur_node)
+            vz_own, vz_int = own_state[-1], int_state[-1]
             dub_own_state, dub_int_state = guam_to_dubins_3d(own_state[1:]), guam_to_dubins_3d(int_state[1:])
-            tau_idx = get_tau_idx(dub_own_state, dub_int_state)
-            print('Dubins own state:',dub_own_state, '\n Dubins int state:', dub_int_state)
+            tau_idx = get_tau_idx(dub_own_state, dub_int_state, vz_own, vz_int)
             acas_state = get_acas_state(dub_own_state, dub_int_state).float()
+            print(f'ACAS state: {acas_state}')
             acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
             last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
             ads = models[last_cmd-1][tau_idx](acas_state.view(1,5)).detach().numpy()
@@ -151,13 +154,13 @@ if __name__ == "__main__":
             car.set_initial(
                 initial_state=[own_state[1:], own_state[1:]],
                 initial_mode=([AgentMode(new_mode)])
-                # initial_mode=([AgentMode.COC])
             )
             car2.set_initial(
                 initial_state=[int_state[1:], int_state[1:]],
                 initial_mode=([AgentMode.COC])
             )
             print(f'New mode: {AgentMode(new_mode)}')
+            print(f'Advisory scores: {ads}')
             scenario.add_agent(car)
             scenario.add_agent(car2)
             id += 1
@@ -177,10 +180,6 @@ if __name__ == "__main__":
     print(f'Total runtime: {time.perf_counter()-start} for {N} simulation(s) given time steps = {ts}')
     fig = go.Figure()
     for trace in traces:
-        # fig = simulation_tree(trace, None, fig, 1, 2, [1, 2], "fill", "trace")
-        # fig = simulation_tree(trace, None, fig, 14, 13, [14, 13], "fill", "trace")
-        fig = simulation_tree_3d(trace, fig,14,'x', 13,'y',15,'z')
+        fig = simulation_tree(trace, None, fig, 14, 13, [14, 13], "fill", "trace")
+        # fig = simulation_tree_3d(trace, fig,14,'x', 13,'y',15,'z')
     fig.show()
-    # trace = scenario.verify(0.2,0.1) # increasing ts to 0.1 to increase learning speed, do the same for dryvr2
-    # fig = reachtube_tree(trace) 
-    # fig.show() 

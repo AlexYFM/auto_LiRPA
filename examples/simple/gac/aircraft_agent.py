@@ -178,28 +178,17 @@ class AircraftAgent(BaseAgent):
             surf_eng=surf_engine_state
         )
         
-    def GuamState2array(self, state_guam, index):
+    def GuamState2array(self, state_guam, climb_rate):
     
         int_e_long = state_guam.controller.int_e_long
         int_e_lat = state_guam.controller.int_e_lat
         aircraft = state_guam.aircraft
         ctrl_surf_state = state_guam.surf_eng.ctrl_surf_state
-        index= np.array([index])
-        
-        ############
-        ## New transition flag
-        ############
-        if index % 15 == 0 and index > 0:
-            transition_flag = np.array([01.325])
-        else:
-            transition_flag = np.array([0.325]) 
-            
-        ego_timer = 0.2 * index
             
         #print(f"index shape: {aircraft.shape}")         
         #print(f"flag shape: {transition_flag.shape}")           
         
-        return np.concatenate((int_e_long, int_e_lat, aircraft, ctrl_surf_state, ego_timer, index)).tolist()
+        return np.concatenate((int_e_long, int_e_lat, aircraft, ctrl_surf_state)).tolist() + [0, climb_rate]
     
     def cmd2ref(self, curr_time, time_bound, init_state, curr_state, cmd):
         if cmd == 0:
@@ -242,8 +231,9 @@ class AircraftAgent(BaseAgent):
         state = self.array2GuamState(state_arr)   
         trace = [[0]+state_arr]
         dub_state_arr = guam_to_dubins_3d(state_arr)
-        vz = -dub_state_arr[-1]*np.sin(dub_state_arr[-2])
+        # vz = -dub_state_arr[-1]*np.sin(dub_state_arr[-2])
         # vz = -50
+        vz = state_arr[-1]
         init_z = -dub_state_arr[2]
 
         for kk in range(T):
@@ -292,7 +282,7 @@ class AircraftAgent(BaseAgent):
             # state = self.step(self.dt, state, ref_input)
             state = self.step(time_step, state, ref_input)
             # print(vec[1])
-            state_arr = self.GuamState2array(state, kk+1)
+            state_arr = self.GuamState2array(state, vz)
             # time_arr = [curr_t + self.dt]
             #print(time_arr)
             # time_state_arr = [curr_t + self.dt] + state_arr
