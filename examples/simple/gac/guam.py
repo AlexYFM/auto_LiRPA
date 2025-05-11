@@ -70,7 +70,7 @@ def dubins_to_guam_2d(state: List) -> List:
     # quat = QrotZ(theta)
     quat = euler_to_quaternion(0,0,theta)
     x,y,z = state[0], state[1], 0
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 0]
 
 # assuming time is not a part of the state
 def guam_to_dubins_2d(state: np.ndarray) -> List: 

@@ -71,115 +71,7 @@ def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor
 
 # recall new_state is [x,y,z,th,psi,v]
 ### expects some 2x5 np arrays for both sets
-# def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> List[Tuple[torch.Tensor]]: 
-#     def dist(pnt1, pnt2):
-#         return np.linalg.norm(
-#             np.array(pnt1) - np.array(pnt2)
-#         )
-
-#     def get_extreme(rect1, rect2):
-#         lb11 = rect1[0]
-#         lb12 = rect1[1]
-#         ub11 = rect1[2]
-#         ub12 = rect1[3]
-
-#         lb21 = rect2[0]
-#         lb22 = rect2[1]
-#         ub21 = rect2[2]
-#         ub22 = rect2[3]
-
-#         # Using rect 2 as reference
-#         left = lb21 > ub11 
-#         right = ub21 < lb11 
-#         bottom = lb22 > ub12
-#         top = ub22 < lb12
-
-#         if top and left: 
-#             dist_min = dist((ub11, lb12),(lb21, ub22))
-#             dist_max = dist((lb11, ub12),(ub21, lb22))
-#         elif bottom and left:
-#             dist_min = dist((ub11, ub12),(lb21, lb22))
-#             dist_max = dist((lb11, lb12),(ub21, ub22))
-#         elif top and right:
-#             dist_min = dist((lb11, lb12), (ub21, ub22))
-#             dist_max = dist((ub11, ub12), (lb21, lb22))
-#         elif bottom and right:
-#             dist_min = dist((lb11, ub12),(ub21, lb22))
-#             dist_max = dist((ub11, lb12),(lb21, ub22))
-#         elif left:
-#             dist_min = lb21 - ub11 
-#             dist_max = np.sqrt((lb21 - ub11)**2 + max((ub22-lb12)**2, (ub12-lb22)**2))
-#         elif right: 
-#             dist_min = lb11 - ub21 
-#             dist_max = np.sqrt((lb21 - ub11)**2 + max((ub22-lb12)**2, (ub12-lb22)**2))
-#         elif top: 
-#             dist_min = lb12 - ub22
-#             dist_max = np.sqrt((ub12 - lb22)**2 + max((ub21-lb11)**2, (ub11-lb21)**2))
-#         elif bottom: 
-#             dist_min = lb22 - ub12 
-#             dist_max = np.sqrt((ub22 - lb12)**2 + max((ub21-lb11)**2, (ub11-lb21)**2)) 
-#         else: 
-#             dist_min = 0 
-#             dist_max = max(
-#                 dist((lb11, lb12), (ub21, ub22)),
-#                 dist((lb11, ub12), (ub21, lb22)),
-#                 dist((ub11, lb12), (lb21, ub12)),
-#                 dist((ub11, ub12), (lb21, lb22))
-#             )
-#         return dist_min, dist_max
-
-#     own_rect = [own_set[i//2][i%2] for i in range(4)]
-#     int_rect = [int_set[i//2][i%2] for i in range(4)]
-#     d_min, d_max = get_extreme(own_rect, int_rect)
-
-#     own_ext = [(own_set[i%2][0], own_set[i//2][1]) for i in range(4)] # will get ll, lr, ul, ur in order
-#     int_ext = [(int_set[i%2][0], int_set[i//2][1]) for i in range(4)] 
-
-#     arho_min = np.inf # does this make sense
-#     arho_max = -np.inf
-#     arho_pi_wrap = []
-#     arho_origin_wrap = []
-#     for own_vert in own_ext:
-#         for int_vert in int_ext:
-#             # arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi) 
-#             # arho_max = max(arho_max, arho)
-#             # arho_min = min(arho_min, arho)
-#             arho_pi_wrap.append(wrap_to_pi(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0])))
-#             arho_origin_wrap.append(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi))
-#     if max(arho_origin_wrap)-min(arho_origin_wrap)<max(arho_pi_wrap)-min(arho_pi_wrap):
-#         arho_min, arho_max = min(arho_origin_wrap), max(arho_origin_wrap)
-#     else:
-#         arho_min, arho_max = min(arho_pi_wrap), max(arho_pi_wrap)
-
-#     theta_min = wrap_to_pi((2*np.pi-own_set[1][3])+arho_min)
-#     theta_max = wrap_to_pi((2*np.pi-own_set[0][3])+arho_max) 
-#     theta_maxs = []
-#     theta_mins = []
-#     if theta_max<theta_min: # bound issue due to wrapping
-#         theta_mins = [-np.pi, theta_min]
-#         theta_maxs = [theta_max, np.pi]
-#     else:
-#         theta_mins = [theta_min]
-#         theta_maxs = [theta_max]
-
-#     psi_min = wrap_to_pi(int_set[0][3]-own_set[1][3])
-#     psi_max = wrap_to_pi(int_set[1][3]-own_set[0][3])
-#     psi_maxs = []
-#     psi_mins = []
-#     if psi_max<psi_min: # bound issue due to wrapping
-#         psi_mins = [-np.pi, psi_min]
-#         psi_maxs = [psi_max, np.pi]
-#     else:
-#         psi_mins = [psi_min]
-#         psi_maxs = [psi_max]
-
-#     sets = [(torch.tensor([d_min, theta_mins[i], psi_mins[j], own_set[0][-1], int_set[0][-1]]), 
-#              torch.tensor([d_max, theta_maxs[i], psi_maxs[j], own_set[1][-1], int_set[1][-1]])) for i in range(len(theta_mins)) for j in range(len(psi_mins))]
-    
-#     return sets
-
-# 2D
-def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch.Tensor]]: 
+def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> List[Tuple[torch.Tensor]]: 
     def dist(pnt1, pnt2):
         return np.linalg.norm(
             np.array(pnt1) - np.array(pnt2)
@@ -254,14 +146,13 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch
             # arho_min = min(arho_min, arho)
             arho_pi_wrap.append(wrap_to_pi(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0])))
             arho_origin_wrap.append(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi))
-    
     if max(arho_origin_wrap)-min(arho_origin_wrap)<max(arho_pi_wrap)-min(arho_pi_wrap):
         arho_min, arho_max = min(arho_origin_wrap), max(arho_origin_wrap)
     else:
         arho_min, arho_max = min(arho_pi_wrap), max(arho_pi_wrap)
 
-    theta_min = wrap_to_pi((2*np.pi-own_set[1][2])+arho_min) # 2D adjustment
-    theta_max = wrap_to_pi((2*np.pi-own_set[0][2])+arho_max) 
+    theta_min = wrap_to_pi((2*np.pi-own_set[1][3])+arho_min)
+    theta_max = wrap_to_pi((2*np.pi-own_set[0][3])+arho_max) 
     theta_maxs = []
     theta_mins = []
     if theta_max<theta_min: # bound issue due to wrapping
@@ -271,28 +162,137 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch
         theta_mins = [theta_min]
         theta_maxs = [theta_max]
 
-    ## TODO: fix issue where theta min and max from dubins conversion not necessarily correct since quaternion to theta not a linear/increasing operation
-    psi_min = wrap_to_pi(int_set[0][2]-own_set[1][2])
-    psi_max = wrap_to_pi(int_set[1][2]-own_set[0][2])
-    # psi_max = psi_max + 2*np.pi if psi_max<psi_min else psi_max
+    psi_min = wrap_to_pi(int_set[0][3]-own_set[1][3])
+    psi_max = wrap_to_pi(int_set[1][3]-own_set[0][3])
     psi_maxs = []
     psi_mins = []
-    print('Psis:', psi_min, psi_max,'\n Psi max>=psi min:', psi_max>=psi_min)
-    print(f'Checking theta own mins and maxes post conversion to dubins: {own_set[1][2]>=own_set[0][2]}')
-    print(f'Checking theta int mins and maxes post conversion to dubins: {int_set[1][2]>=int_set[0][2]}')
     if psi_max<psi_min: # bound issue due to wrapping
-        # psi_mins = [-np.pi, psi_min]
-        # psi_maxs = [psi_max, np.pi]
-        # this is a hack and not necessarily correct since not guaranteed that own_set_theta_min < own_set_theta_max
-        psi_mins = [psi_max]
-        psi_maxs = [psi_min]
+        psi_mins = [-np.pi, psi_min]
+        psi_maxs = [psi_max, np.pi]
     else:
         psi_mins = [psi_min]
         psi_maxs = [psi_max]
-    print('Psi after correction:', psi_mins, psi_maxs)
-    sets = [(torch.tensor([d_min, theta_mins[i], psi_mins[j], own_set[0][3], int_set[0][3]]), 
-             torch.tensor([d_max, theta_maxs[i], psi_maxs[j], own_set[1][3], int_set[1][3]])) for i in range(len(theta_mins)) for j in range(len(psi_mins))]
+
+    sets = [(torch.tensor([d_min, theta_mins[i], psi_mins[j], own_set[0][-1], int_set[0][-1]]), 
+             torch.tensor([d_max, theta_maxs[i], psi_maxs[j], own_set[1][-1], int_set[1][-1]])) for i in range(len(theta_mins)) for j in range(len(psi_mins))]
+    
     return sets
+
+# 2D
+# def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch.Tensor]]: 
+#     def dist(pnt1, pnt2):
+#         return np.linalg.norm(
+#             np.array(pnt1) - np.array(pnt2)
+#         )
+
+#     def get_extreme(rect1, rect2):
+#         lb11 = rect1[0]
+#         lb12 = rect1[1]
+#         ub11 = rect1[2]
+#         ub12 = rect1[3]
+
+#         lb21 = rect2[0]
+#         lb22 = rect2[1]
+#         ub21 = rect2[2]
+#         ub22 = rect2[3]
+
+#         # Using rect 2 as reference
+#         left = lb21 > ub11 
+#         right = ub21 < lb11 
+#         bottom = lb22 > ub12
+#         top = ub22 < lb12
+
+#         if top and left: 
+#             dist_min = dist((ub11, lb12),(lb21, ub22))
+#             dist_max = dist((lb11, ub12),(ub21, lb22))
+#         elif bottom and left:
+#             dist_min = dist((ub11, ub12),(lb21, lb22))
+#             dist_max = dist((lb11, lb12),(ub21, ub22))
+#         elif top and right:
+#             dist_min = dist((lb11, lb12), (ub21, ub22))
+#             dist_max = dist((ub11, ub12), (lb21, lb22))
+#         elif bottom and right:
+#             dist_min = dist((lb11, ub12),(ub21, lb22))
+#             dist_max = dist((ub11, lb12),(lb21, ub22))
+#         elif left:
+#             dist_min = lb21 - ub11 
+#             dist_max = np.sqrt((lb21 - ub11)**2 + max((ub22-lb12)**2, (ub12-lb22)**2))
+#         elif right: 
+#             dist_min = lb11 - ub21 
+#             dist_max = np.sqrt((lb21 - ub11)**2 + max((ub22-lb12)**2, (ub12-lb22)**2))
+#         elif top: 
+#             dist_min = lb12 - ub22
+#             dist_max = np.sqrt((ub12 - lb22)**2 + max((ub21-lb11)**2, (ub11-lb21)**2))
+#         elif bottom: 
+#             dist_min = lb22 - ub12 
+#             dist_max = np.sqrt((ub22 - lb12)**2 + max((ub21-lb11)**2, (ub11-lb21)**2)) 
+#         else: 
+#             dist_min = 0 
+#             dist_max = max(
+#                 dist((lb11, lb12), (ub21, ub22)),
+#                 dist((lb11, ub12), (ub21, lb22)),
+#                 dist((ub11, lb12), (lb21, ub12)),
+#                 dist((ub11, ub12), (lb21, lb22))
+#             )
+#         return dist_min, dist_max
+
+#     own_rect = [own_set[i//2][i%2] for i in range(4)]
+#     int_rect = [int_set[i//2][i%2] for i in range(4)]
+#     d_min, d_max = get_extreme(own_rect, int_rect)
+
+#     own_ext = [(own_set[i%2][0], own_set[i//2][1]) for i in range(4)] # will get ll, lr, ul, ur in order
+#     int_ext = [(int_set[i%2][0], int_set[i//2][1]) for i in range(4)] 
+
+#     arho_min = np.inf # does this make sense
+#     arho_max = -np.inf
+#     arho_pi_wrap = []
+#     arho_origin_wrap = []
+#     for own_vert in own_ext:
+#         for int_vert in int_ext:
+#             # arho = np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi) 
+#             # arho_max = max(arho_max, arho)
+#             # arho_min = min(arho_min, arho)
+#             arho_pi_wrap.append(wrap_to_pi(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0])))
+#             arho_origin_wrap.append(np.arctan2(int_vert[1]-own_vert[1],int_vert[0]-own_vert[0]) % (2*np.pi))
+    
+#     if max(arho_origin_wrap)-min(arho_origin_wrap)<max(arho_pi_wrap)-min(arho_pi_wrap):
+#         arho_min, arho_max = min(arho_origin_wrap), max(arho_origin_wrap)
+#     else:
+#         arho_min, arho_max = min(arho_pi_wrap), max(arho_pi_wrap)
+
+#     theta_min = wrap_to_pi((2*np.pi-own_set[1][2])+arho_min) # 2D adjustment
+#     theta_max = wrap_to_pi((2*np.pi-own_set[0][2])+arho_max) 
+#     theta_maxs = []
+#     theta_mins = []
+#     if theta_max<theta_min: # bound issue due to wrapping
+#         theta_mins = [-np.pi, theta_min]
+#         theta_maxs = [theta_max, np.pi]
+#     else:
+#         theta_mins = [theta_min]
+#         theta_maxs = [theta_max]
+
+#     ## TODO: fix issue where theta min and max from dubins conversion not necessarily correct since quaternion to theta not a linear/increasing operation
+#     psi_min = wrap_to_pi(int_set[0][2]-own_set[1][2])
+#     psi_max = wrap_to_pi(int_set[1][2]-own_set[0][2])
+#     # psi_max = psi_max + 2*np.pi if psi_max<psi_min else psi_max
+#     psi_maxs = []
+#     psi_mins = []
+#     print('Psis:', psi_min, psi_max,'\n Psi max>=psi min:', psi_max>=psi_min)
+#     print(f'Checking theta own mins and maxes post conversion to dubins: {own_set[1][2]>=own_set[0][2]}')
+#     print(f'Checking theta int mins and maxes post conversion to dubins: {int_set[1][2]>=int_set[0][2]}')
+#     if psi_max<psi_min: # bound issue due to wrapping
+#         # psi_mins = [-np.pi, psi_min]
+#         # psi_maxs = [psi_max, np.pi]
+#         # this is a hack and not necessarily correct since not guaranteed that own_set_theta_min < own_set_theta_max
+#         psi_mins = [psi_max]
+#         psi_maxs = [psi_min]
+#     else:
+#         psi_mins = [psi_min]
+#         psi_maxs = [psi_max]
+#     print('Psi after correction:', psi_mins, psi_maxs)
+#     sets = [(torch.tensor([d_min, theta_mins[i], psi_mins[j], own_set[0][3], int_set[0][3]]), 
+#              torch.tensor([d_max, theta_maxs[i], psi_maxs[j], own_set[1][3], int_set[1][3]])) for i in range(len(theta_mins)) for j in range(len(psi_mins))]
+#     return sets
 
 def get_final_states_sim(n, agent_ids: List) -> Dict[str, List]: 
     states = {id: n.trace[id][-1][1:] for id in agent_ids}
@@ -334,7 +334,7 @@ def dubins_to_guam_2d(state: List) -> List:
     # quat = QrotZ(theta)
     quat = euler_to_quaternion(0,0,theta)
     x,y,z = state[0], state[1], 0
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 0]
 
 # assuming time is not a part of the state
 def guam_to_dubins_2d(state: np.ndarray) -> List: 
@@ -343,6 +343,80 @@ def guam_to_dubins_2d(state: np.ndarray) -> List:
     _, _, theta = quaternion_to_euler(state[15:19])
     v = np.sqrt(vx**2+vy**2+vz**2)
     return np.array([x,y,np.pi/2-float(theta),v])
+
+def dubins_to_guam_3d(state: List) -> List:
+    v = state[-1]
+    theta = np.pi/2-state[3]
+    psi = state[4]
+    # quat = QrotZ(theta)
+    quat = euler_to_quaternion(0,0,theta)
+    x,y,z = state[0], state[1], state[2]
+    climb_rate = -v*np.sin(psi)
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v, 0, 0, 0.0, 0.0, 0.0, y, x, -z, float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, climb_rate]
+
+# assuming time is not a part of the state
+def guam_to_dubins_3d(state: np.ndarray) -> List: 
+    vx, vy, vz = state[6:9]
+    y, x, z = state[12:15]
+    _, psi, theta = quaternion_to_euler(state[15:19])
+    v = np.sqrt(vx**2+vy**2+vz**2)
+    return [x,y,-z, np.pi/2-float(theta),float(psi), v]
+
+def dubins_to_guam_3d_set(state: List[List]) -> List[List]:
+    # assuming 0 is inf and 1 is sup
+    v_min, v_max = state[0][-1], state[1][-1]
+    theta_min, theta_max = np.pi/2-state[1][3], np.pi/2-state[0][3]  
+    psi_min, psi_max = state[0][4], state[1][4]
+    quat_min = euler_to_quaternion(0,0,theta_min)
+    quat_max = euler_to_quaternion(0,0,theta_max)
+    for i in range(len(quat_min)):
+        if quat_min[i]>quat_max[i]:
+            quat_min[i], quat_max[i] = quat_max[i], quat_min[i]
+    x_min,y_min,z_min,  x_max,y_max,z_max = state[0][0], state[0][1], state[0][2], state[1][0], state[1][1], state[1][2]
+    vz_min = -v_min*np.sin(psi_min) # psi will only be used in the initialization to set vz
+    vz_max = -v_max*np.sin(psi_max)
+    if vz_max>vz_min:
+        vz_max, vz_min = vz_min, vz_max
+
+    return [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v_min, 0, 0, 0.0, 0.0, 0.0, y_min, x_min, -z_max, float(quat_min[0]), float(quat_min[1]), float(quat_min[2]), float(quat_min[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, vz_max],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v_max, 0, 0, 0.0, 0.0, 0.0, y_max, x_max, -z_min, float(quat_max[0]), float(quat_max[1]), float(quat_max[2]), float(quat_max[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, vz_min]]
+# assuming time is not a part of the state
+
+def guam_to_dubins_3d_set(state: np.ndarray) -> List[List]: 
+    vx, vy, vz = state[0,6:9]
+    vx_max, vy_max, vz_max = state[1,6:9]
+    y, x, z = state[0,12:15]
+    y_max, x_max, z_max = state[1,12:15]
+    _, _, theta_min = quaternion_to_euler(state[0][15:19])
+    _, _, theta_max = quaternion_to_euler(state[1][15:19])
+    # do this correctly once John sends the fix
+
+    if theta_min>theta_max:
+        theta_min, theta_max = theta_max, theta_min
+
+    v_min, v_max = np.sqrt(vx**2+vy**2+vz**2), np.sqrt(vx_max**2+vy_max**2+vz_max**2)
+    return [[x,y,-z_max, np.pi/2-float(theta_max),0, v_min],[x_max,y_max,-z, np.pi/2-float(theta_min),0, v_max]] # pitch doesn't affect acas state
+
+def get_point_tau(own_state: np.ndarray, int_state: np.ndarray, vz_own, vz_int) -> float:
+    z_own, z_int = own_state[2], int_state[2]
+    return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
+
+def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray, vz_own: float, vz_int: float) -> int:
+    tau = get_point_tau(own_state, int_state, vz_own, vz_int)
+    # print(tau)
+    if tau<0:
+        return 0 # following Stanley Bak, if tau<0, return 0 -- note that Stanley Bak also ends simulation if tau<0
+    if tau>tau_list[-1]:
+        return len(tau_list)-1 
+    for i in range(len(tau_list)-1):
+        tau_low, tau_up = tau_list[i], tau_list[i+1]
+        if tau_low <= tau <= tau_up:
+            if np.abs(tau-tau_low)<=np.abs(tau-tau_up):
+                return i
+            else:
+                return i+1
+            
+    return len(tau_list)-1 # this should be unreachable
 #=====================================================================================
 
 
@@ -376,6 +450,8 @@ class VerseBridge():
             # [[-2, -1, np.pi, 100], [-1,1,  np.pi,  100]]
             # [[-1001, -1, 0, 100], [-999, 1,  0, 100]]
 
+        # [[-2, -2, -2, np.pi, np.pi/12, 100], [-1,-1, -1, np.pi, np.pi/12, 100]]
+        # [[-1001, 19, 498, 0,0, 100], [-999, 20, 501, 0,0, 100]]
     #uses input from from GUI
     def updatePlane(self, id="", agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
 
@@ -428,10 +504,10 @@ class VerseBridge():
 
             # print(init_set)
             scenario.set_init_single(
-                id, [dubins_to_guam_2d(init_set[0]), dubins_to_guam_2d(init_set[1])], (init_mode,)
+                id, dubins_to_guam_3d_set(init_set), (init_mode,)
             )
             # print(init_set)
-
+            # print(np.array(dubins_to_guam_3d(init_set[1]))-np.array(dubins_to_guam_3d(init_set[0]))>=0)
         self.plotter.clear()
         self.plotter.show_grid()
         T = 10
@@ -462,15 +538,19 @@ class VerseBridge():
                 cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
                 guam_states = get_final_states_verify(cur_node, agent_ids)
                 # print(f'HERE: {guam_states}')
-                states = {id: np.array([guam_to_dubins_2d(guam_states[id][0]), guam_to_dubins_2d(guam_states[id][1])]) for id in guam_states}
+                states = {id: np.array(guam_to_dubins_3d_set(guam_states[id])) for id in guam_states}
                 # print(states)
                 all_modes = {}
                 for own_id in acas_agent_ids:
                     modes = set()
-                    # tau_idx_min = {int_id: min(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
-                    # tau_idx_max = {int_id: max(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
+                    tau_idx_min = {int_id: min(get_tau_idx(states[own_id][1], states[int_id][0], guam_states[own_id][1][-1], guam_states[int_id][0][-1]), 
+                                               get_tau_idx(states[own_id][0], states[int_id][1], guam_states[own_id][0][-1], guam_states[int_id][1][-1])) 
+                                               for int_id in agent_ids if int_id != own_id}
+                    tau_idx_max = {int_id: max(get_tau_idx(states[own_id][1], states[int_id][0], guam_states[own_id][1][-1], guam_states[int_id][0][-1]), 
+                                               get_tau_idx(states[own_id][0], states[int_id][1], guam_states[own_id][0][-1], guam_states[int_id][1][-1])) 
+                                               for int_id in agent_ids if int_id != own_id}
                     reachsets = {int_id: get_acas_reach(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}
-                    print(reachsets)
+                    # print(reachsets)
                     closest_ids = []
                     closest_id = min(reachsets, key=lambda k:reachsets[k][0][0][0])
                     closest_dist_upper = reachsets[closest_id][0][1][0]
@@ -489,21 +569,21 @@ class VerseBridge():
                             x = (x_l+x_u)/2
                             print(f'{own_id}-{id} {reachset}')
                             last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
-                            # for tau_idx in range(tau_idx_min[id], tau_idx_max[id]+1):
-                            # lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
-                            lirpa_model = BoundedModule(models[last_cmd-1][0], (torch.empty_like(x))) 
-                            ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
-                            bounded_x = BoundedTensor(x, ptb=ptb_x)
-                            lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
+                            for tau_idx in range(tau_idx_min[id], tau_idx_max[id]+1):
+                                lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
+                                # lirpa_model = BoundedModule(models[last_cmd-1][0], (torch.empty_like(x))) 
+                                ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
+                                bounded_x = BoundedTensor(x, ptb=ptb_x)
+                                lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
 
-                            print(f'\n {own_id} Advisory ranges:', lb, ub,'\n')
-                            new_mode = np.argmin(lb.numpy())+1                             
-                            new_modes = []
-                            for i in range(len(ub.numpy()[0])):
-                                lower = lb.numpy()[0][i]
-                                if lower<=ub.numpy()[0][new_mode-1]:
-                                    new_modes.append(i+1)
-                            modes.update(new_modes)
+                                print(f'\n {own_id} Advisory ranges:', lb, ub,'\n')
+                                new_mode = np.argmin(lb.numpy())+1                             
+                                new_modes = []
+                                for i in range(len(ub.numpy()[0])):
+                                    lower = lb.numpy()[0][i]
+                                    if lower<=ub.numpy()[0][new_mode-1]:
+                                        new_modes.append(i+1)
+                                modes.update(new_modes)
 
                     all_modes.update({own_id: modes})
                 # print(modes, cur_node.start_time) # at 15 s, all modes possible -- investigate why
@@ -543,7 +623,7 @@ class VerseBridge():
                     init_mode = val["init_mode"]
                     init_set = val["init_set"]
                     scenario.set_init_single(
-                        id, [dubins_to_guam_2d(init_set[0]), dubins_to_guam_2d(init_set[1])], (init_mode,)
+                        id, dubins_to_guam_3d_set(init_set), (init_mode,)
                     )
                 trace = scenario.simulate(Tv,ts, self.plotter) # this is the root
                 node_id = 1+trace.root.id
@@ -557,20 +637,20 @@ class VerseBridge():
                     cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
                     guam_states = get_final_states_sim(cur_node, agent_ids)
                     # print('HERE: ', guam_states)
-                    states = {id: guam_to_dubins_2d(guam_states[id]) for id in guam_states}
-                    print(states)
+                    states = {id: guam_to_dubins_3d(guam_states[id]) for id in guam_states}
+                    # print(states)
                     all_modes = {}
                     for own_id in acas_agent_ids:
-                        # tau_idxs = {int_id: get_tau_idx(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}
+                        tau_idxs = {int_id: get_tau_idx(states[own_id], states[int_id], guam_states[own_id][-1], guam_states[int_id][-1]) for int_id in agent_ids if int_id != own_id}
                         acas_states = {int_id: get_acas_state(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}                    
                         closest_id = min(acas_states, key=lambda k:acas_states[k][0])
-                        # tau_idx = tau_idxs[closest_id]
-                        tau_idx = 0
+                        tau_idx = tau_idxs[closest_id]
+                        # tau_idx = 0
                         acas_state = acas_states[closest_id]
                         acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
                         last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                         ads = models[last_cmd-1][tau_idx](acas_state.float().view(1,5)).detach().numpy()
-                        # print(f'{own_id} \nAdvisory scores:', ads,'\n')
+                        print(f'{own_id} \nAdvisory scores:', ads,'\n')
                         new_mode = np.argmin(ads[0])+1 # will eventually be a list
                         all_modes[own_id] = new_mode
                     

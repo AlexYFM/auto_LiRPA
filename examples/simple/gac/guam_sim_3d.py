@@ -180,6 +180,6 @@ if __name__ == "__main__":
     print(f'Total runtime: {time.perf_counter()-start} for {N} simulation(s) given time steps = {ts}')
     fig = go.Figure()
     for trace in traces:
-        fig = simulation_tree(trace, None, fig, 14, 13, [14, 13], "fill", "trace")
-        # fig = simulation_tree_3d(trace, fig,14,'x', 13,'y',15,'z')
+        # fig = simulation_tree(trace, None, fig, 14, 13, [14, 13], "fill", "trace")
+        fig = simulation_tree_3d(trace, fig,14,'x', 13,'y',15,'z')
     fig.show()
