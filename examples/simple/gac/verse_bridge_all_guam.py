@@ -63,11 +63,18 @@ tau_list = [0, 1, 5, 10, 20, 50, 60, 80, 100]
 #     return torch.tensor([dist, theta, psi, own_state[-1], int_state[-1]])
 
 ### 2D
+# def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor:
+#     dist = np.sqrt((own_state[0]-int_state[0])**2+(own_state[1]-int_state[1])**2)
+#     theta = wrap_to_pi((2*np.pi-own_state[2])+np.arctan2(int_state[1]-own_state[1], int_state[0]-own_state[0]))
+#     psi = wrap_to_pi(int_state[2]-own_state[2])
+#     return torch.tensor([dist, theta, psi, own_state[3], int_state[3]])
+
+### 3D 
 def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor:
     dist = np.sqrt((own_state[0]-int_state[0])**2+(own_state[1]-int_state[1])**2)
-    theta = wrap_to_pi((2*np.pi-own_state[2])+np.arctan2(int_state[1]-own_state[1], int_state[0]-own_state[0]))
-    psi = wrap_to_pi(int_state[2]-own_state[2])
-    return torch.tensor([dist, theta, psi, own_state[3], int_state[3]])
+    theta = wrap_to_pi((2*np.pi-own_state[3])+np.arctan2(int_state[1]-own_state[1], int_state[0]-own_state[0]))
+    psi = wrap_to_pi(int_state[3]-own_state[3])
+    return torch.tensor([dist, theta, psi, own_state[-1], int_state[-1]])
 
 # recall new_state is [x,y,z,th,psi,v]
 ### expects some 2x5 np arrays for both sets
@@ -663,7 +670,7 @@ class VerseBridge():
                         ### ADDS POINT LABELS
                         if id in acas_agent_ids and getattr(AgentMode, cur_node.mode[id][0]) != cur_mode:
                             # print(f'{id} Modes {getattr(AgentMode, cur_node.mode[own_id][0])}, {cur_mode}')
-                            self.plotter.add_point_labels(states[id][0:3], [cur_mode.name], always_visible=True, font_size=10)
+                            self.plotter.add_point_labels( np.array(list(states[id][0:2])+[-states[id][2]]) , [cur_mode.name], always_visible=True, font_size=10)
                     node_id += 1
                     new_trace = scenario.simulate(Tv, ts, self.plotter)
                     temp_root = new_trace.root
