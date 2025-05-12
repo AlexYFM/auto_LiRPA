@@ -154,8 +154,9 @@ if __name__ == "__main__":
     # car = CarAgent('car1', file_name=input_code_name)
     # car2 = NPCAgent('car2')
     car = AircraftAgent("car1", file_name=input_code_name)
-    input_code_name = os.path.join(script_dir, "dl_acas_intruder.py")
-    car2 = AircraftAgent_Int("car2", file_name=input_code_name)
+    # input_code_name = os.path.join(script_dir, "dl_acas_intruder.py")
+    # car2 = AircraftAgent_Int("car2", file_name=input_code_name)
+    car2 = AircraftAgent_Int("car2")
     scenario = Scenario(ScenarioConfig(parallel=False))
     # scenario.set_sensor(GUAMSensor())
     

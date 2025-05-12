@@ -71,14 +71,18 @@ class AircraftAgent_Int(BaseAgent):
     def __init__(
         self,
         id,
-        code=None,
-        file_name=None,
         initial_state=None,
-        initial_mode=None
+        initial_mode=None,
     ):
-        super().__init__(
-            id, code, file_name, initial_state=initial_state, initial_mode=initial_mode
-        )
+        # super().__init__(
+        #     id, initial_state=initial_state, initial_mode=initial_mode
+        # )
+        self.id = id
+        self.set_initial_state(initial_state)
+        self.set_initial_mode(initial_mode)
+        self.set_static_parameter(None)
+        self.set_uncertain_parameter(None)
+    
         self._environment = Environment()
 
         self.controller = LCControl()
