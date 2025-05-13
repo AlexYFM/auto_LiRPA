@@ -174,7 +174,7 @@ if __name__ == "__main__":
     T = 10
     Tv = 1
     ts = 0.1
-    N = 1
+    N = 25
     models = [torch.load(f"./examples/simple/acasxu_crown/ACASXU_run2a_{net + 1}_1_batch_2000.pth") for net in range(5)]
     scenario.config.print_level = 0
     scenario.add_agent(car)
@@ -188,7 +188,9 @@ if __name__ == "__main__":
             #  [dubins_to_guam_2d([-2000, 0, 0, 100]), dubins_to_guam_2d([-2000, 0, 0, 100])]],
             # [[-2, -1, np.pi, 100], [-1,1,  np.pi,  100]]
             # [[-1001, -1, 0, 100], [-999, 1,  0, 100]]
-            [[dubins_to_guam_2d([-2, -1, np.pi, 100]), dubins_to_guam_2d([-1,1,  np.pi,  100])],
+            [
+                # [dubins_to_guam_2d([-2, -1, np.pi, 100]), dubins_to_guam_2d([-1,1,  np.pi,  100])],
+             [dubins_to_guam_2d([-10, -10, np.pi, 100]), dubins_to_guam_2d([10,10,  np.pi,  100])],
             [dubins_to_guam_2d([-1001, -1, 0, 100]), dubins_to_guam_2d([-999, 1,  0, 100])]],
             [(AgentMode.COC,), (AgentMode.COC,)]
         )
@@ -202,28 +204,31 @@ if __name__ == "__main__":
         while len(queue):
             cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
             own_state, int_state = get_final_states_sim(cur_node)
-            dub_own_state, dub_int_state = guam_to_dubins_2d(own_state[1:]), guam_to_dubins_2d(int_state[1:])
-            # print(dub_own_state, dub_int_state)
-            # acas_state = get_acas_state(own_state[1:], int_state[1:]).float()
-            acas_state = get_acas_state(dub_own_state, dub_int_state).float()
-            print('ACAS State: ', acas_state)
-            acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
-            # ads = model(acas_state.view(1,5)).detach().numpy()
-            last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
-            ads = models[last_cmd-1](acas_state.view(1,5)).detach().numpy()
-            # print(ads)
-            # new_mode = np.argmax(ads[0])+1 # will eventually be a list
-            new_mode = np.argmin(ads[0])+1 # will eventually be a list
-            # print(AgentMode(new_mode))
-            # if AgentMode(new_mode)==AgentMode.WL:
-            #     print(cur_node.start_time)
-            #     exit()
-            # this will eventually be a loop
-            # scenario.set_init(
-            #     [[own_state[1:], own_state[1:]], [int_state[1:], int_state[1:]]], # this should eventually be a range 
-            #     [([AgentMode(new_mode)]),([AgentMode.COC])]
-            # )
-            # print(f'New mode: {AgentMode(new_mode)}')
+            
+            # dub_own_state, dub_int_state = guam_to_dubins_2d(own_state[1:]), guam_to_dubins_2d(int_state[1:])
+            # # print(dub_own_state, dub_int_state)
+            # # acas_state = get_acas_state(own_state[1:], int_state[1:]).float()
+            # acas_state = get_acas_state(dub_own_state, dub_int_state).float()
+            # print('ACAS State: ', acas_state)
+            # acas_state = (acas_state-means_for_scaling)/range_for_scaling # normalization
+            # # ads = model(acas_state.view(1,5)).detach().numpy()
+            # last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
+            # ads = models[last_cmd-1](acas_state.view(1,5)).detach().numpy()
+            # # print(ads)
+            # # new_mode = np.argmax(ads[0])+1 # will eventually be a list
+            # new_mode = np.argmin(ads[0])+1 # will eventually be a list
+            # # print(AgentMode(new_mode))
+            # # if AgentMode(new_mode)==AgentMode.WL:
+            # #     print(cur_node.start_time)
+            # #     exit()
+            # # this will eventually be a loop
+            # # scenario.set_init(
+            # #     [[own_state[1:], own_state[1:]], [int_state[1:], int_state[1:]]], # this should eventually be a range 
+            # #     [([AgentMode(new_mode)]),([AgentMode.COC])]
+            # # )
+            # # print(f'New mode: {AgentMode(new_mode)}')
+            new_mode = 1
+
             car.set_initial(
                 initial_state=[own_state[1:], own_state[1:]],
                 initial_mode=([AgentMode(new_mode)])

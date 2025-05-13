@@ -60,6 +60,14 @@ from jax_guam.utils.jax_utils import jax2np, jax_use_cpu, jax_use_double
 from jax_guam.utils.logging import set_logger_format
 from loguru import logger
 
+# import plotly.graph_objects as go
+# import plotly.express as px
+# import plotly.io as pio
+# import uuid
+# import json
+# from pathlib import Path
+
+# REGISTRY_PATH = Path("trace_registry.json")
 
 def guam_to_dubins_3d(state: np.ndarray) -> List: 
     vx, vy, vz = state[6:9]
@@ -178,7 +186,7 @@ class AircraftAgent(BaseAgent):
             surf_eng=surf_engine_state
         )
         
-    def GuamState2array(self, state_guam, climb_rate):
+    def GuamState2array(self, state_guam, climb_rate, time):
     
         int_e_long = state_guam.controller.int_e_long
         int_e_lat = state_guam.controller.int_e_lat
@@ -188,7 +196,7 @@ class AircraftAgent(BaseAgent):
         #print(f"index shape: {aircraft.shape}")         
         #print(f"flag shape: {transition_flag.shape}")           
         
-        return np.concatenate((int_e_long, int_e_lat, aircraft, ctrl_surf_state)).tolist() + [0, climb_rate]
+        return np.concatenate((int_e_long, int_e_lat, aircraft, ctrl_surf_state)).tolist() + [time, climb_rate]
     
     def cmd2ref(self, curr_time, time_bound, init_state, curr_state, cmd):
         if cmd == 0:
@@ -235,6 +243,8 @@ class AircraftAgent(BaseAgent):
         # vz = -50
         vz = state_arr[-1]
         init_z = -dub_state_arr[2]
+        
+        start_time = state_arr[-2]
 
         for kk in range(T):
             # print(mode)
@@ -282,13 +292,26 @@ class AircraftAgent(BaseAgent):
             # state = self.step(self.dt, state, ref_input)
             state = self.step(time_step, state, ref_input)
             # print(vec[1])
-            state_arr = self.GuamState2array(state, vz)
+            state_arr = self.GuamState2array(state, vz, start_time+curr_t+time_step)
             # time_arr = [curr_t + self.dt]
             #print(time_arr)
             # time_state_arr = [curr_t + self.dt] + state_arr
             time_state_arr = [curr_t + time_step] + state_arr
             #print(time_state_arr)
             trace.append(time_state_arr)
+            
+        trace = np.array(trace)
+
+        # registry = json.loads(REGISTRY_PATH.read_text())
+        # # plt.scatter(trace[:,14], trace[:,13])
+        # fig = px.scatter(x=trace[:,-2],y=trace[:,14])
+        # fig.update_traces(marker=dict(color="green"))  
+        # for trace_data in fig.data:
+        #     # print(type(trace_data))
+        #     registry.append(pio.to_json(trace_data))
+        # with open(REGISTRY_PATH, "w") as file:
+        #     json.dump(registry, file)   
+                 
         return np.array(trace)
 
 if __name__ == '__main__':

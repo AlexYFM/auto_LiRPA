@@ -161,8 +161,8 @@ for x_init_val in x_init_ego:
             # quat = euler_to_quaternion(0, 0, 0)
             ac1.set_initial(
     
-                    [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x+10, own_0_y+10, own_0_z+10, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]],
+                    [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x-10, own_0_y-10, own_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -25.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x+10, own_0_y+10, own_0_z+1, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -25.0]],
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z, 0.707, 0.0, 0, 0.707, 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0]
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, own_0_vx, own_0_vy, own_0_vz, 0.0, 0.0, 0.0, own_0_x, own_0_y, own_0_z,float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 1.0],
@@ -177,7 +177,8 @@ for x_init_val in x_init_ego:
             # decisions_int = [0] * 96
             script_dir = os.path.realpath(os.path.dirname(__file__))
             input_code_name = os.path.join(script_dir, "dl_acas_intruder.py")
-            ac2 = AircraftAgent_Int("car2", file_name=input_code_name, initial_mode=int_mode)
+            # ac2 = AircraftAgent_Int("car2", file_name=input_code_name, initial_mode=int_mode)
+            ac2 = AircraftAgent_Int("car2")
 
             # ac2.set_initial(
             #     [
@@ -219,7 +220,7 @@ for x_init_val in x_init_ego:
             quat2 = euler_to_quaternion(0, 0, 0)
             ac2.set_initial(
                 [
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0, int_0_x, int_0_y, int_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0, int_0_x, int_0_y-10, int_0_z, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 0],
                     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0, int_0_x+10, int_0_y+10, int_0_z+10, 1.0, 0.0, -4.3136e-05, 0., 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 0]
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0,int_0_y, int_0_x, int_0_z, float(quat2[0]), float(quat2[1]), float(quat2[2]), float(quat2[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0],
                     # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, int_0_vx, int_0_vy, int_0_vz, 0.0, 0.0, 0.0,int_0_y, int_0_x, int_0_z, float(quat2[0]), float(quat2[1]), float(quat2[2]), float(quat2[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, -1.0]
@@ -236,7 +237,7 @@ for x_init_val in x_init_ego:
             # traces_simu = scenario.simulate(80, 0.2)
             start = time.time()
             # traces_simu = scenario.simulate(30, 0.1) # NOTE:  DO NOT SET FINAL TIME TO ANY MULTIPLE OF YOUR SAMPLE TIME (DELETES AN EGO STATE AT SAMPLE TIME AND YOU GET SHAPE ERRORS)
-            traces_simu = scenario.verify(30, 0.1) # NOTE:  DO NOT SET FINAL TIME TO ANY MULTIPLE OF YOUR SAMPLE TIME (DELETES AN EGO STATE AT SAMPLE TIME AND YOU GET SHAPE ERRORS)
+            traces_simu = scenario.verify(20, 0.1) # NOTE:  DO NOT SET FINAL TIME TO ANY MULTIPLE OF YOUR SAMPLE TIME (DELETES AN EGO STATE AT SAMPLE TIME AND YOU GET SHAPE ERRORS)
 
             # own_state, int_state = get_final_states_sim(traces_simu.root)
             # dub_own_state, dub_int_state = guam_to_dubins_2d(own_state[1:]), guam_to_dubins_2d(int_state[1:])

@@ -23,6 +23,8 @@ from auto_LiRPA.perturbations import PerturbationLpNorm
 import itertools
 from verse.plotter.plotter3D import plotRemaining
 from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import QrotZ, quaternion_to_euler, euler_to_quaternion
+import jax.numpy as jnp
+
 
 from numba import njit
 from aircraft_agent import AircraftAgent
@@ -273,27 +275,85 @@ def dubins_to_guam_3d_set(state: List[List]) -> List[List]:
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v_max, 0, 0, 0.0, 0.0, 0.0, y_max, x_max, -z_min, float(quat_max[0]), float(quat_max[1]), float(quat_max[2]), float(quat_max[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, vz_min]]
 # assuming time is not a part of the state
 
+
 def guam_to_dubins_3d_set(state: np.ndarray) -> List[List]: 
+    def yaw_bounds(min_quat, max_quat):
+
+        min_w, min_x, min_y, min_z = min_quat
+        max_w, max_x, max_y, max_z= max_quat
+
+        w_vals = jnp.array([min_w, max_w])
+        x_vals = jnp.array([min_x, max_x])
+        y_vals = jnp.array([min_y, max_y])
+        z_vals = jnp.array([min_z, max_z])
+
+        min_yaw = jnp.pi
+        max_yaw = -jnp.pi
+
+        for w in w_vals:
+            for x in x_vals:
+                for y in y_vals:
+                    for z in z_vals:
+                        quat = jnp.array([w, x, y, z])
+                        # print(quat)
+                        quat = quat / jnp.linalg.norm(quat)
+                        _, _, yaw = quaternion_to_euler(quat)
+
+                        if yaw < min_yaw:
+                            min_yaw = yaw
+                        if yaw > max_yaw:
+                            max_yaw = yaw
+
+        # check for yaw of 180 degrees
+        quat_180 = jnp.array([0, 0, 0, 1])
+
+        lower_comp_180 = jnp.all(quat_180 >= min_quat)
+        upper_comp_180 = jnp.all(quat_180 <= max_quat)
+
+        # Check if the 180 deg yaw quaternion can be within all bounds
+        contains_180 = lower_comp_180 and upper_comp_180
+
+        #Check for yaw of -180 degrees
+        quat_minus180 = jnp.array([0, 0, 0, -1])
+
+        lower_comp_minus180 = jnp.all(quat_minus180 >= min_quat)
+        upper_comp_minus180 = jnp.all(quat_minus180 <= max_quat)
+
+        # Check if the 180 deg yaw quaternion can be within all bounds
+        contains_minus180 = lower_comp_minus180 and upper_comp_minus180
+
+        #  Account for wrapping around +/- 180 degrees
+        if contains_180 or contains_minus180:
+            temp = min_yaw + 2*jnp.pi
+            min_yaw = max_yaw
+            max_yaw = temp
+
+        return min_yaw, max_yaw
+    
     vx, vy, vz = state[0,6:9]
     vx_max, vy_max, vz_max = state[1,6:9]
     y, x, z = state[0,12:15]
     y_max, x_max, z_max = state[1,12:15]
-    _, _, theta_min = quaternion_to_euler(state[0][15:19])
-    _, _, theta_max = quaternion_to_euler(state[1][15:19])
-    # do this correctly once John sends the fix
 
-    if theta_min>theta_max:
-        theta_min, theta_max = theta_max, theta_min
+    # do this correctly once John sends the fix
+    # _, _, theta_min = quaternion_to_euler(state[0][15:19])
+    # _, _, theta_max = quaternion_to_euler(state[1][15:19])
+    # if theta_min>theta_max:
+    #     theta_min, theta_max = theta_max, theta_min
+
+    theta_min, theta_max = yaw_bounds(state[0][15:19], state[1][15:19])
 
     v_min, v_max = np.sqrt(vx**2+vy**2+vz**2), np.sqrt(vx_max**2+vy_max**2+vz_max**2)
     return [[x,y,-z_max, np.pi/2-float(theta_max),0, v_min],[x_max,y_max,-z, np.pi/2-float(theta_min),0, v_max]] # pitch doesn't affect acas state
 
 def get_point_tau(own_state: np.ndarray, int_state: np.ndarray, vz_own, vz_int) -> float:
     z_own, z_int = own_state[2], int_state[2]
+    # print(f'z-distance: {z_int-z_own}, vz-diff: {vz_int-vz_own}')
     return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
 
 def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray, vz_own: float, vz_int: float) -> int:
-    tau = get_point_tau(own_state, int_state, vz_own, vz_int)
+    tau = get_point_tau(own_state, int_state, -vz_own, -vz_int)
+    # print(f'tau: {tau}')
     # print(tau)
     if tau<0:
         return 0 # following Stanley Bak, if tau<0, return 0 -- note that Stanley Bak also ends simulation if tau<0
@@ -352,6 +412,9 @@ class VerseBridge():
 
         # [[-2, -10, -2, np.pi, np.pi/6, 100], [-1,13,-1, np.pi, np.pi/6, 100]]
         # [[-1001, -13, 499, 0,0, 100], [-999, 10, 500, 0,0, 100]]
+
+        # [[-2, -7, -2, np.pi, np.pi/6, 100], [-1,7,-1, np.pi, np.pi/6, 100]]
+        # [[-1001, -7, 499, 0,0, 100], [-999, 7, 500, 0,0, 100]]
     #uses input from from GUI
     def updatePlane(self, id="", agent_type=None,  dl=None, x=0, y=0, z=0, radius=0, yaw=0, pitch=0, v=0   ):
 
@@ -471,6 +534,7 @@ class VerseBridge():
                             print(f'{own_id}-{id} {reachset}')
                             last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                             for tau_idx in range(tau_idx_min[id], tau_idx_max[id]+1):
+                                # print(f'{own_id}-{id} tau_idx: {tau_idx}')
                                 lirpa_model = BoundedModule(models[last_cmd-1][tau_idx], (torch.empty_like(x))) 
                                 # lirpa_model = BoundedModule(models[last_cmd-1][0], (torch.empty_like(x))) 
                                 ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)

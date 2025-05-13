@@ -38,6 +38,10 @@ import time
 from jax_guam.subsystems.genctrl_inputs.genctrl_circle_inputs import QrotZ, quaternion_to_euler, euler_to_quaternion
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import PerturbationLpNorm
+import plotly.io as pio
+import glob
+from pathlib import Path
+import json
 
 class AgentMode(Enum):
     COC = auto()
@@ -57,6 +61,7 @@ class TrackMode(Enum):
 
 means_for_scaling = torch.FloatTensor([19791.091, 0.0, 0.0, 650.0, 600.0])
 range_for_scaling = torch.FloatTensor([60261.0, 6.28318530718, 6.28318530718, 1100.0, 1200.0])
+REGISTRY_PATH = Path("trace_registry.json")
 
 def get_acas_state(own_state: np.ndarray, int_state: np.ndarray) -> torch.Tensor:
     dist = np.sqrt((own_state[0]-int_state[0])**2+(own_state[1]-int_state[1])**2)
@@ -80,6 +85,19 @@ def guam_to_dubins_2d(state: np.ndarray) -> List:
     v = np.sqrt(vx**2+vy**2+vz**2)
     return [x,y,np.pi/2-float(theta),v]
 
+def dubins_to_guam_2d_set(state: List[List]) -> List[List]:
+    # assuming 0 is inf and 1 is sup
+    v_min, v_max = state[0][-1], state[1][-1]
+    theta_min, theta_max = np.pi/2-state[1][2], np.pi/2-state[0][2]  
+    quat_min = euler_to_quaternion(0,0,theta_min)
+    quat_max = euler_to_quaternion(0,0,theta_max)
+    for i in range(len(quat_min)):
+        if quat_min[i]>quat_max[i]:
+            quat_min[i], quat_max[i] = quat_max[i], quat_min[i]
+    x_min,y_min,z_min,  x_max,y_max,z_max = state[0][0], state[0][1], state[0][2], state[1][0], state[1][1], state[1][2]
+
+    return [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v_min, 0, 0, 0.0, 0.0, 0.0, y_min, x_min, -z_max, float(quat_min[0]), float(quat_min[1]), float(quat_min[2]), float(quat_min[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, v_max, 0, 0, 0.0, 0.0, 0.0, y_max, x_max, -z_min, float(quat_max[0]), float(quat_max[1]), float(quat_max[2]), float(quat_max[3]), 0.0, 0.0, -0.000780906088785921, -0.000780906088785921, 0.0, 0.000, 0]]
 
 def guam_to_dubins_2d_set(states: List) -> List:
     lb = guam_to_dubins_2d(states[0][1:])
@@ -202,13 +220,14 @@ def get_acas_reach(own_set: np.ndarray, int_set: np.ndarray) -> list[tuple[torch
 
 if __name__ == "__main__":
     import os
+    REGISTRY_PATH.write_text(json.dumps([]))
     script_dir = os.path.realpath(os.path.dirname(__file__))
     input_code_name = os.path.join(script_dir, "dl_acas.py")
     # car = CarAgent('car1', file_name=input_code_name)
     # car2 = NPCAgent('car2')
     car = AircraftAgent("car1", file_name=input_code_name)
     input_code_name = os.path.join(script_dir, "dl_acas_intruder.py")
-    car2 = AircraftAgent_Int("car2", file_name=input_code_name)
+    car2 = AircraftAgent_Int("car2")
     scenario = Scenario(ScenarioConfig(parallel=False))
     # scenario.set_sensor(GUAMSensor())
     
@@ -217,7 +236,8 @@ if __name__ == "__main__":
         # initial_state=[[0, -1000, np.pi/3, 100], [0, -1000, np.pi/3, 100]],
         # initial_state=[dubins_to_guam_2d([0, -1010, np.pi/3, 100]), dubins_to_guam_2d([0, -990, np.pi/3, 100])],
         # initial_state=[dubins_to_guam_2d([-20, -1020, np.pi/3, 100]), dubins_to_guam_2d([20, -980, np.pi/3, 100])],
-        initial_state=[dubins_to_guam_2d([-2, -1, np.pi, 100]), dubins_to_guam_2d([-1,1,  np.pi,  100])],
+        # initial_state=[dubins_to_guam_2d([-10, -10, np.pi, 100]), dubins_to_guam_2d([10,10,  np.pi,  100])],
+        initial_state = dubins_to_guam_2d_set([[-10, -10, np.pi, 100], [10,10,  np.pi,  100]]),
         initial_mode=([AgentMode.COC])
     )
     car2.set_initial(
@@ -248,40 +268,44 @@ if __name__ == "__main__":
     while len(queue):
         cur_node = queue.popleft() # equivalent to trace.nodes[0] in this case
         own_state, int_state = get_final_states_verify(cur_node)
-        dub_own_state, dub_int_state = guam_to_dubins_2d_set(own_state), guam_to_dubins_2d_set(int_state)
-        # print(dub_own_state, dub_int_state)
-        modes = set()
-        print('Dubins own state:',dub_own_state)
-        reachsets = get_acas_reach(np.array(dub_own_state), np.array(dub_int_state))
-        print(reachsets)
-        for reachset in reachsets:
-            if len(modes)==5: # if all modes are possible, stop iterating
-                break 
-            acas_min, acas_max = reachset
-            acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
-            x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
-            x = (x_l+x_u)/2
-
-            last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
-            lirpa_model = BoundedModule(models[last_cmd-1], (torch.empty_like(x))) 
-            # lirpa_model = BoundedModule(model, (torch.empty_like(x))) 
-
-            ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
-            bounded_x = BoundedTensor(x, ptb=ptb_x)
-            lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
-            # new_mode = np.argmax(ub.numpy())+1 # will eventually be a list/need to check upper and lower bounds
-            new_mode = np.argmin(lb.numpy())+1 # will eventually be a list/need to check upper and lower bounds
-            
-            new_modes = []
-            for i in range(len(ub.numpy()[0])):
-                # upper = ub.numpy()[0][i]
-                # if upper>=lb.numpy()[0][new_mode-1]:
-                #     new_modes.append(i+1)
-                lower = lb.numpy()[0][i]
-                if lower<=ub.numpy()[0][new_mode-1]:
-                    new_modes.append(i+1)
-            modes.update(new_modes)
+        print(f'xy uncertainty in last state: {(np.array(own_state)[1]-np.array(own_state)[0])[13:15]}')
         
+        ### testing
+        # dub_own_state, dub_int_state = guam_to_dubins_2d_set(own_state), guam_to_dubins_2d_set(int_state)
+        # # print(dub_own_state, dub_int_state)
+        # modes = set()
+        # # print('Dubins own state:',dub_own_state)
+        # reachsets = get_acas_reach(np.array(dub_own_state), np.array(dub_int_state))
+        # # print(reachsets)
+        # for reachset in reachsets:
+        #     if len(modes)==5: # if all modes are possible, stop iterating
+        #         break 
+        #     acas_min, acas_max = reachset
+        #     acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
+        #     x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
+        #     x = (x_l+x_u)/2
+
+        #     last_cmd = getattr(AgentMode, cur_node.mode['car1'][0]).value  # cur_mode.mode[.] is some string 
+        #     lirpa_model = BoundedModule(models[last_cmd-1], (torch.empty_like(x))) 
+        #     # lirpa_model = BoundedModule(model, (torch.empty_like(x))) 
+
+        #     ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
+        #     bounded_x = BoundedTensor(x, ptb=ptb_x)
+        #     lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
+        #     # new_mode = np.argmax(ub.numpy())+1 # will eventually be a list/need to check upper and lower bounds
+        #     new_mode = np.argmin(lb.numpy())+1 # will eventually be a list/need to check upper and lower bounds
+            
+        #     new_modes = []
+        #     for i in range(len(ub.numpy()[0])):
+        #         # upper = ub.numpy()[0][i]
+        #         # if upper>=lb.numpy()[0][new_mode-1]:
+        #         #     new_modes.append(i+1)
+        #         lower = lb.numpy()[0][i]
+        #         if lower<=ub.numpy()[0][new_mode-1]:
+        #             new_modes.append(i+1)
+        #     modes.update(new_modes)
+        
+        modes = [1]
         for new_m in modes:
             scenario.set_init(
                 [[own_state[0][1:], own_state[1][1:]], [int_state[0][1:], int_state[1][1:]]], # this should eventually be a range 
@@ -290,7 +314,14 @@ if __name__ == "__main__":
             id += 1
             # new_trace = scenario.simulate(Tv, ts)
             new_trace = scenario.verify(Tv, ts)
+
             temp_root = new_trace.root
+
+            first = np.array(new_trace.root.trace['car1'][:2])
+            print(f'xy uncertainty in first state: {(first[1]-first[0])[13:15]}')
+            second = np.array(new_trace.root.trace['car1'][2:4])
+            print(f'xy uncertainty in second state: {(second[1]-second[0])[13:15]}')
+
             new_node = cur_node.new_child(temp_root.init, temp_root.mode, temp_root.trace, cur_node.start_time + Tv, id)
             cur_node.child.append(new_node)
             print(f'Start time: {new_node.start_time}\nNode ID: {id}\nNew mode: {AgentMode(new_m)}')
@@ -304,7 +335,19 @@ if __name__ == "__main__":
     #     print(f'Start time: {node.start_time}, Mode: ', node.mode['car1'][0])
     print(f'Total runtime: {time.perf_counter()-start} given time steps = {ts}')
     fig = go.Figure()
-    fig = reachtube_tree(trace, None, fig, 14, 13, [14, 13], "fill", "trace")
+    # fig = reachtube_tree(trace, None, fig, 14, 13, [14, 13], "fill", "trace")
+    fig = reachtube_tree(trace, None, fig, 25, 14, [25, 14], "fill", "trace")
+
+    with open("trace_registry.json", "r") as file:
+        registry = json.load(file)
+    for trace_json in registry:
+        loaded_fig = pio.from_json(trace_json)
+    
+    # Iterate over the data in the loaded figure and add each trace to the new figure
+        for trace_data in loaded_fig.data:
+            # print(type(trace))
+            fig.add_trace(trace_data)
+
     # for trace in traces:
     #     # fig = simulation_tree(trace, None, fig, 1, 2, [1, 2], "fill", "trace")
     #     fig = simulation_tree(trace, None, fig, 14, 13, [14, 13], "fill", "trace")
