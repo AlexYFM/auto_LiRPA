@@ -349,7 +349,11 @@ def guam_to_dubins_3d_set(state: np.ndarray) -> List[List]:
 def get_point_tau(own_state: np.ndarray, int_state: np.ndarray, vz_own, vz_int) -> float:
     z_own, z_int = own_state[2], int_state[2]
     # print(f'z-distance: {z_int-z_own}, vz-diff: {vz_int-vz_own}')
-    return -(z_int-z_own)/(vz_int-vz_own) # will be negative when z and vz are not aligned, which is fine
+    if (vz_own == vz_int) and abs(z_own-z_int)<100:
+        return 0
+    elif vz_own == vz_int:
+        return np.inf
+    return -(z_int-z_own)/(vz_int-vz_own)
 
 def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray, vz_own: float, vz_int: float) -> int:
     tau = get_point_tau(own_state, int_state, -vz_own, -vz_int)
@@ -401,6 +405,7 @@ class VerseBridge():
         # [[1199, -1, 649, np.pi,0, 100], [1201, 1, 651, np.pi,0, 100]]
         # [[-2001, 299, 849, 0,0, 100], [-1999, 301, 851, 0,0, 100]]
 
+        # [[-10, 990, -1, -np.pi/2, np.pi/6, 100], [10, 1010, 1, -np.pi/2, np.pi/6, 100]] (other agent)
 
         # Below is equivalent to multi_own
 
@@ -531,7 +536,7 @@ class VerseBridge():
                             acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
                             x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
                             x = (x_l+x_u)/2
-                            print(f'{own_id}-{id} {reachset}')
+                            print(f'{own_id}-{id} reachset: {reachset}, tau indices: {tau_idx_min[id], tau_idx_max[id]+1}')
                             last_cmd = getattr(AgentMode, cur_node.mode[own_id][0]).value  # cur_mode.mode[.] is some string 
                             for tau_idx in range(tau_idx_min[id], tau_idx_max[id]+1):
                                 # print(f'{own_id}-{id} tau_idx: {tau_idx}')
@@ -541,7 +546,7 @@ class VerseBridge():
                                 bounded_x = BoundedTensor(x, ptb=ptb_x)
                                 lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
 
-                                print(f'\n {own_id} Advisory ranges:', lb, ub,'\n')
+                                print(f'\n {own_id}-{id}-{tau_idx} Advisory ranges:', lb, ub,'\n')
                                 new_mode = np.argmin(lb.numpy())+1                             
                                 new_modes = []
                                 for i in range(len(ub.numpy()[0])):
