@@ -193,7 +193,7 @@ def get_final_states_sim(n, agent_ids: List) -> Dict[str, List]:
     # int_state = n.trace['car2'][-1]
     return states
 
-def get_final_states_verify(n: 'AnalysisTreeNode', agent_ids: List) -> Dict[str, List]: 
+def get_final_states_verify(n: 'AnalysisTreeNode', agent_ids: List) -> Dict[str, np.ndarray]: 
     states = {id: np.array(n.trace[id][-2:])[:,1:] for id in agent_ids}
     # own_state = n.trace['car1'][-2:]
     # int_states = [n.trace['car2'][-2:], n.trace['car3'][-2:]]
@@ -372,10 +372,14 @@ def get_tau_idx(own_state: np.ndarray, int_state: np.ndarray, vz_own: float, vz_
                 return i+1
             
     return len(tau_list)-1 # this should be unreachable
+
+def add_dubins_noise(reachset: np.ndarray, position_noise: float = 2.5) -> np.ndarray:
+    lb, ub = reachset[0], reachset[1]
+    lb[0:2] = lb[0:2] - position_noise
+    ub[0:2] = ub[0:2] + position_noise
+    return np.array([lb, ub])
+
 #=====================================================================================
-
-
-
 
 
 class VerseBridge():
@@ -405,7 +409,8 @@ class VerseBridge():
         # [[1199, -1, 649, np.pi,0, 100], [1201, 1, 651, np.pi,0, 100]]
         # [[-2001, 299, 849, 0,0, 100], [-1999, 301, 851, 0,0, 100]]
 
-        # [[-10, 990, -1, -np.pi/2, np.pi/6, 100], [10, 1010, 1, -np.pi/2, np.pi/6, 100]] (other agent)
+        # [[-10, 990, -1, -np.pi/2, np.pi/6, 100], [10, 1010, 1, -np.pi/2, np.pi/6, 100]] 
+        # demo has 1st, 2nd, and 4th airplanes be running acas
 
         # Below is equivalent to multi_own
 
@@ -508,7 +513,10 @@ class VerseBridge():
                 guam_states = get_final_states_verify(cur_node, agent_ids)
                 # print(f'HERE: {guam_states}')
                 states = {id: np.array(guam_to_dubins_3d_set(guam_states[id])) for id in guam_states}
-                # print(states)
+
+                # states = {id: add_dubins_noise(states[id]) for id in states} # adding in noise
+
+                print(states)
                 all_modes = {}
                 for own_id in acas_agent_ids:
                     modes = set()
