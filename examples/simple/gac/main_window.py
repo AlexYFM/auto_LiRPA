@@ -1,8 +1,16 @@
+import os
+os.environ["QT_OPENGL"] = "desktop"     # keep VTK happy
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
+    "--disable-gpu --disable-gpu-compositing --disable-gpu-vsync "
+    "--disable-accelerated-2d-canvas"
+)
+os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
 from verse.plotter.plotter3D import *
 import verse.plotter
 import sys
 import numpy as np
-import os
 import json
 import pyvistaqt as pvqt
 import time
@@ -212,7 +220,7 @@ class MainWindow(QMainWindow):
         
         self.agent_type_dropdown = QComboBox(self.agent_settings_container)
         self.agent_type_dropdown.setGeometry(120, 45, 330, 25)
-        self.agent_type_dropdown.addItems(["Car", "NPC"])
+        self.agent_type_dropdown.addItems(["ACAS", "NPC"])
         self.agent_type_dropdown.setStyleSheet("""
             QComboBox {
                 background-color: white;
@@ -522,7 +530,7 @@ class MainWindow(QMainWindow):
             'size': 20,
             'yaw':0,
             'init_set': '',
-            'agent_type': 'Car', 
+            'agent_type': 'ACAS', 
             'dl': 'dl_acas.py'  
         }
         
@@ -627,7 +635,7 @@ class MainWindow(QMainWindow):
             self.update_status(f"Selected plane: {plane_id}")
 
             # Update agent type dropdown
-            agent_type = self.agents[plane_id].get('agent_type', 'Car')
+            agent_type = self.agents[plane_id].get('agent_type', 'ACAS')
             index = self.agent_type_dropdown.findText(agent_type)
             if index >= 0:
                 self.agent_type_dropdown.setCurrentIndex(index)

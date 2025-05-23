@@ -5,6 +5,7 @@ import numpy as np
 from enum import Enum,auto
 from typing import Tuple, List, Dict
 import ast
+os.environ['JAX_PLATFORM_NAME'] = 'cpu'
 
 # Define whatever here
 #=====================================================================================
@@ -389,9 +390,9 @@ class VerseBridge():
 
     def __init__(self,ax):
         self.agents = {}
-        self.agent_dict = {"Car": AircraftAgent, "NPC": AircraftAgent_Int}
+        self.agent_dict = {"ACAS": AircraftAgent, "NPC": AircraftAgent_Int}
 
-        self.mode_dict = {"Car": AgentMode.COC, "NPC": AgentMode.COC}
+        self.mode_dict = {"ACAS": AgentMode.COC, "NPC": AgentMode.COC}
         self.plotter = ax
 
 
@@ -503,7 +504,10 @@ class VerseBridge():
         ts = 0.1
         scenario.config.print_level = 0
         start = time.perf_counter()
-        models = [[torch.load(f"./examples/simple/acasxu_crown/nets/ACASXU_run2a_{net + 1}_{tau + 1}_batch_2000.pth") for tau in range(9)] for net in range(5)]
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        models = [[
+            torch.load(os.path.join(script_dir, f"../acasxu_crown/nets/ACASXU_run2a_{net + 1}_{tau + 1}_batch_2000.pth")) for tau in range(9)
+        ] for net in range(5)]
         norm = float("inf")
         # above is agnostic of verify/simulate
         #=====================================================================================================================
@@ -568,7 +572,8 @@ class VerseBridge():
                                 # lirpa_model = BoundedModule(models[last_cmd-1][0], (torch.empty_like(x))) 
                                 ptb_x = PerturbationLpNorm(norm = norm, x_L=x_l, x_U=x_u)
                                 bounded_x = BoundedTensor(x, ptb=ptb_x)
-                                lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-CROWN')
+                                # print("======", bounded_x.shape)
+                                lb, ub = lirpa_model.compute_bounds(bounded_x, method='alpha-crown')
 
                                 print(f'\n {own_id}-{id}-{tau_idx} Advisory ranges:', lb, ub,'\n')
                                 new_mode = np.argmin(lb.numpy())+1                             
@@ -657,7 +662,7 @@ class VerseBridge():
                         ### ADDS POINT LABELS
                         if id in acas_agent_ids and getattr(AgentMode, cur_node.mode[id][0]) != cur_mode:
                             # print(f'{id} Modes {getattr(AgentMode, cur_node.mode[own_id][0])}, {cur_mode}')
-                            self.plotter.add_point_labels( np.array(list(states[id][0:2])+[-states[id][2]]) , [cur_mode.name], always_visible=True, font_size=10)
+                            self.plotter.add_point_labels( np.array(list(states[id][0:2])+[-states[id][2]]) , [cur_mode.name], always_visible=True, font_size=20, text_color='blue', shape_color='yellow')
                     node_id += 1
                     new_trace = scenario.simulate(Tv, ts, self.plotter)
                     temp_root = new_trace.root
