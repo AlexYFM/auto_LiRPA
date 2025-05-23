@@ -43,7 +43,7 @@ class VerseWorker(QThread):
     finished = pyqtSignal()
     progress = pyqtSignal(int)  # Optional: for progress updates
 
-    def __init__(self, verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify):
+    def __init__(self, verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify, noise):
         super().__init__()
         self.verse_bridge = verse_bridge
         self.x_dim = x_dim
@@ -53,7 +53,7 @@ class VerseWorker(QThread):
         self.time_step = time_step
         self.num_sims = num_sims
         self.verify = verify
-
+        self.noise = noise
     def run(self):
         # Run the computation in the thread
         self.verse_bridge.run_verse(
@@ -63,7 +63,8 @@ class VerseWorker(QThread):
             time_horizon=self.time_horizon, 
             time_step=self.time_step, 
             num_sims=self.num_sims, 
-            verify=self.verify
+            verify=self.verify,
+            noise = self.noise
         )
         self.finished.emit()
 class MainWindow(QMainWindow):
@@ -467,6 +468,10 @@ class MainWindow(QMainWindow):
     def setup_right_overlay(self):
         """Setup the right side overlay container and its components"""
         self.right_overlay_container = RightOverlay(self.main_widget)
+        self.right_overlay_container.setStyleSheet("background-color: #b7b7b7; border: 2px solid #616161; opacity: 0.8")
+
+       
+
 
     def setup_right_tab(self):
         """Setup the side tab for showing/hiding right overlay"""
@@ -530,7 +535,7 @@ class MainWindow(QMainWindow):
         self.js_bridge.setParent(self)
         channel.registerObject("interop", self.js_bridge)
         self.web_view.page().setWebChannel(channel)
-        
+       
         # Now load the HTML content after the channel is set up
         self.web_view.setHtml(self.get_web_content())
         
@@ -774,15 +779,12 @@ class MainWindow(QMainWindow):
         # self.web_view.page().runJavaScript("getPlanePositions();", 
         #                                 lambda positions: self.handle_inputs(positions, True))
         self.stop()
-        self.plotter.clear()
 
         self.handle_inputs(True)
 
     def run_simulate_clicked(self):
         """Callback for the Run Simulate button (simulation mode)"""
         self.stop()
-        self.plotter.clear()
-
         self.handle_inputs(False)
 
     def stop(self):
@@ -792,8 +794,78 @@ class MainWindow(QMainWindow):
         if(self.thread):
             self.thread.join()
             self.thread = None
-        self.plotter.clear()
-        self.update_status("Stopped Verse")
+            
+        # Store the current layout items except the plotter
+        layout_items = []
+        for i in range(self.main_layout.count()):
+            item = self.main_layout.itemAt(i)
+            if item and item.widget() != self.plotter.interactor:
+                layout_items.append(item.widget())
+            
+        # Properly clean up the old plotter
+        if hasattr(self, 'plotter'):
+            try:
+                # Remove from layout first
+                self.main_layout.removeWidget(self.plotter.interactor)
+                
+                # Close and cleanup resources
+                self.plotter.close()
+                self.plotter.interactor.close()
+                self.plotter.interactor.deleteLater()
+                self.plotter.deleteLater()
+                
+                # Force Qt to process the deletion
+                QApplication.processEvents()
+                
+                # Small delay to ensure cleanup is complete
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"Error during plotter cleanup: {e}")
+        
+        try:
+            # Create fresh plotter instance
+            self.plotter = pvqt.QtInteractor()
+            self.plotter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            
+            # Clear the layout and add back all components in the correct order
+            while self.main_layout.count():
+                item = self.main_layout.takeAt(0)
+                if item.widget():
+                    item.widget().setParent(None)
+            
+            # Add the plotter first
+            self.main_layout.addWidget(self.plotter.interactor)
+            
+            # Add back all other components
+            for widget in layout_items:
+                self.main_layout.addWidget(widget)
+            
+            # Initialize the new plotter with basic settings
+            self.plotter.show_grid()
+            self.plotter.show()
+            
+            # Force a render
+            self.plotter.render()
+            
+            # Update the verse bridge with the new plotter
+            if hasattr(self, 'verse_bridge'):
+                self.verse_bridge = VerseBridge(self.plotter)
+            
+            # Ensure overlays stay on top
+            if hasattr(self, 'overlay_container'):
+                self.overlay_container.raise_()
+            if hasattr(self, 'right_overlay_container'):
+                self.right_overlay_container.raise_()
+            if hasattr(self, 'side_tab'):
+                self.side_tab.raise_()
+            if hasattr(self, 'right_side_tab'):
+                self.right_side_tab.raise_()
+            
+            self.update_status("Stopped Verse")
+        except Exception as e:
+            print(f"Error during plotter initialization: {e}")
+            self.update_status("Error restarting plotter")
+
     def get_max_time_from_data(self, file_path):
         """Get the maximum time value from the file (last value of last line)"""
         max_time = 0
@@ -860,9 +932,13 @@ class MainWindow(QMainWindow):
 
             verse.plotter.plotter3D.plotted = []
             verse.plotter.plotter3D.not_plotted = []
-            #self.run_plotter_in_thread( file_path)
+            self.run_plotter_in_thread( file_path)
 
+
+
+            #verse.plotter.clear()
             preprocess_file(self.plotter, file_path)
+
 
             self.timeline_slider.show()
             self.timeline_slider.raise_()
@@ -880,6 +956,8 @@ class MainWindow(QMainWindow):
                     num_sims = config['num_sims']
                     save_to_file = config['save']
                     log_file = config['log_file']
+                    noise = config['noise']
+
             verse.plotter.plotter3D.node_rect_cache ={}
             verse.plotter.plotter3D.node_idx =0
 
@@ -923,14 +1001,14 @@ class MainWindow(QMainWindow):
                     self.verse_bridge.addInitialSet(id, result)
 
             self.plotter.clear()
-            self.run_in_thread( x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify)
+            self.run_in_thread( x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify, noise)
 
 
-    def run_in_thread(self, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify):
+    def run_in_thread(self, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify,noise):
         
         # Create and set up the worker
         self.verse_worker = VerseWorker(
-            self.verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify
+            self.verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify,noise
         )
         
         # Connect signals

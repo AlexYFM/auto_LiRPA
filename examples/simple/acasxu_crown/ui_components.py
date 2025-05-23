@@ -293,18 +293,36 @@ class RightInfoPanel(QFrame):
         
         layout.addStretch()
 
-
-
 class RightOverlay(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         
         # Set up dimensions
         overlay_width = 380
-        overlay_height = 500  # Increased height
+        overlay_height = 600
         self.setGeometry(parent.width() - overlay_width, 0, overlay_width, overlay_height)
         
-        # Initialize components
+        # Create main layout with zero margins
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Create frame with background
+        self.main_frame = QFrame()
+        self.main_frame.setStyleSheet("background-color: #b7b7b7; border: 2px solid #616161;")
+        
+        # Create content layout
+        frame_layout = QVBoxLayout(self.main_frame)
+        frame_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Create container for controls - IMPORTANT: NO STYLESHEET HERE
+        self.container = QWidget()
+        frame_layout.addWidget(self.container)
+        
+        # Add frame to main layout
+        main_layout.addWidget(self.main_frame)
+        
+        # Setup UI components
         self.setup_ui()
         
         # Load config on startup
@@ -314,113 +332,127 @@ class RightOverlay(QWidget):
 
     def setup_ui(self):
         """Create and arrange the widgets inside the overlay"""
-        # Info Panel
-        self.right_info_panel = RightInfoPanel(self)
-        self.right_info_panel.setGeometry(20, 10, 340, 450)
-
-        # Labels and Inputs
-        self.dimensions_label = self.create_label("Dimensions:", 30, 110, bold=True)
+        # Time settings group
+        self.time_step_label = self.create_label("Time Step:", 20, 40, bold=True)
+        self.time_step_input = self.create_doublespinbox(120, 40, 0.01, 10.0, 0.1, 0.1, 2)
         
-        self.x_dim_label = self.create_label("X:", 110, 110)
-        self.x_dim_input = self.create_spinbox(130, 110, 0, 9999, 0)
+        self.time_horizon_label = self.create_label("Time Horizon:", 190, 40, bold=True)
+        self.time_horizon_input = self.create_doublespinbox(290, 40, 0.1, 100.0, 5.0, 0.5, 1)
+
+        # Dimensions group
+        self.dimensions_label = self.create_label("Dimensions:", 20, 90, bold=True)
         
-        self.y_dim_label = self.create_label("Y:", 190, 110)
-        self.y_dim_input = self.create_spinbox(210, 110, 0, 9999, 1)
+        self.x_dim_label = self.create_label("X:", 100, 90)
+        self.x_dim_input = self.create_spinbox(120, 90, 0, 9999, 0)
         
-        self.z_dim_label = self.create_label("Z:", 270, 110)
-        self.z_dim_input = self.create_spinbox(290, 110, 0, 9999, 2)
+        self.y_dim_label = self.create_label("Y:", 180, 90)
+        self.y_dim_input = self.create_spinbox(200, 90, 0, 9999, 1)
+        
+        self.z_dim_label = self.create_label("Z:", 260, 90)
+        self.z_dim_input = self.create_spinbox(280, 90, 0, 9999, 2)
 
-        self.speed_label = self.create_label("Plot Speed:", 30, 150, bold=True)
-        self.speed_input = self.create_spinbox(130, 150, 1, 99999, 100)
+        # Speed and batching group
+        self.speed_label = self.create_label("Plot Speed:", 20, 140, bold=True)
+        self.speed_input = self.create_spinbox(120, 140, 1, 99999, 100)
+        
+        self.node_batching_label = self.create_label("Node Level Batching:", 190, 140, bold=True)
+        self.node_batching_checkbox = self.create_checkbox(340, 145)
 
-        self.time_step_label = self.create_label("Time Step:", 30, 70, bold=True)
-        self.time_step_input = self.create_doublespinbox(130, 70, 0.01, 10.0, 0.1, 0.1, 2)
+        # File settings group
+        self.save_to_file_label = self.create_label("Save to File:", 20, 190, bold=True)
+        self.save_to_file_checkbox = self.create_checkbox(120, 195)
+        
+        self.log_file_label = self.create_label("Log File:", 190, 190, bold=True)
+        self.log_file_input = self.create_lineedit(270, 190, "boxes.txt", width=80)
 
-        self.time_horizon_label = self.create_label("Time Horizon:", 30, 270, bold=True)
-        self.time_horizon_input = self.create_doublespinbox(130, 270, 0.1, 100.0, 5.0, 0.5, 1)
+        # Number of simulations
+        self.num_sims_label = self.create_label("Number of Simulations:", 20, 240, bold=True)
+        self.num_sims_input = self.create_spinbox(170, 240, 0, 500, 0)
+        
+        # Noise checkbox
+        self.noise_label = self.create_label("Noise:", 20, 290, bold=True)
+        self.noise_checkbox = self.create_checkbox(120, 295)
 
-        self.num_sims_label = self.create_label("Number of Simulations:", 30, 310, bold=True)
-        self.num_sims_input = self.create_spinbox(180, 310, 0, 500, 0)
-
-        self.node_batching_label = self.create_label("Node Level Batching:", 30, 350, bold=True)
-        self.node_batching_checkbox = self.create_checkbox(180, 355)
-
-        self.save_to_file_label = self.create_label("Save to File:", 30, 180, bold=True)
-        self.save_to_file_checkbox = self.create_checkbox(130, 185)
-
-        self.log_file_label = self.create_label("Log File:", 30, 225, bold=True)
-        self.log_file_input = self.create_lineedit(130, 225, "boxes.txt")
-
-        self.save_config_button = StyledButton("Save Config", self)
-        self.save_config_button.setGeometry(120, 400, 150, 30)
+        # Save config button
+        self.save_config_button = QPushButton("Save Config", self.container)
+        self.save_config_button.setGeometry(110, 400, 150, 30)
+        self.save_config_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #2472a4;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+            }
+        """)
         self.save_config_button.clicked.connect(self.save_config)
 
     def create_label(self, text, x, y, bold=False):
-        label = QLabel(text, self)
+        label = QLabel(text, self.container)
         label.setGeometry(x, y, 150, 30)
-        style = "color: white;" + (" font-weight: bold;" if bold else "")
-        label.setStyleSheet(style)
+        
+        # Direct styling that works without inheritance issues
+        label.setStyleSheet("color: #000000; font-weight: bold; background-color: gray;")
+       
         return label
 
     def create_spinbox(self, x, y, min_val, max_val, default_val):
-        spinbox = QSpinBox(self)
+        spinbox = QSpinBox(self.container)
         spinbox.setGeometry(x, y, 50, 30)
         spinbox.setRange(min_val, max_val)
         spinbox.setValue(default_val)
-        spinbox.setStyleSheet(self.spinbox_style())
+        spinbox.setStyleSheet("""
+            background-color: white;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            padding: 2px 4px;
+            color: black;
+        """)
         return spinbox
 
     def create_doublespinbox(self, x, y, min_val, max_val, default_val, step, decimals):
-        doublespinbox = QDoubleSpinBox(self)
-        doublespinbox.setGeometry(x, y, 100, 30)
+        doublespinbox = QDoubleSpinBox(self.container)
+        doublespinbox.setGeometry(x, y, 60, 30)
         doublespinbox.setRange(min_val, max_val)
         doublespinbox.setValue(default_val)
         doublespinbox.setSingleStep(step)
         doublespinbox.setDecimals(decimals)
-        doublespinbox.setStyleSheet(self.spinbox_style())
+        doublespinbox.setStyleSheet("""
+            background-color: white;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            padding: 2px 4px;
+            color: black;
+        """)
         return doublespinbox
 
-    def create_lineedit(self, x, y, default_text):
-        lineedit = QLineEdit(self)
-        lineedit.setGeometry(x, y, 160, 30)
+    def create_lineedit(self, x, y, default_text, width=80):
+        lineedit = QLineEdit(self.container)
+        lineedit.setGeometry(x, y, width, 30)
         lineedit.setText(default_text)
-        lineedit.setStyleSheet(self.lineedit_style())
+        lineedit.setStyleSheet("""
+            background-color: white;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            padding: 2px 4px;
+            color: black;
+        """)
         return lineedit
 
     def create_checkbox(self, x, y):
-        checkbox = QCheckBox(self)
+        checkbox = QCheckBox(self.container)
         checkbox.setGeometry(x, y, 20, 20)
-        checkbox.setStyleSheet(self.checkbox_style())
-        return checkbox
-
-    def spinbox_style(self):
-        return """
-            QSpinBox, QDoubleSpinBox {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QSpinBox:focus, QDoubleSpinBox:focus {
-                border: 2px solid #b92980;
-            }
-        """
-
-    def lineedit_style(self):
-        return """
-            QLineEdit {
-                background-color: white;
-                border: 1px solid #D477B1;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #b92980;
-            }
-        """
-
-    def checkbox_style(self):
-        return """
+        checkbox.setStyleSheet("""
             QCheckBox {
                 background-color: transparent;
             }
@@ -430,15 +462,16 @@ class RightOverlay(QWidget):
             }
             QCheckBox::indicator:unchecked {
                 background-color: white;
-                border: 1px solid #D477B1;
+                border: 1px solid #3498db;
                 border-radius: 4px;
             }
             QCheckBox::indicator:checked {
-                background-color: #D477B1;
-                border: 1px solid #D477B1;
+                background-color: #3498db;
+                border: 1px solid #3498db;
                 border-radius: 4px;
             }
-        """
+        """)
+        return checkbox
 
     def load_config(self):
         """Load configuration from a JSON file if it exists"""
@@ -452,28 +485,27 @@ class RightOverlay(QWidget):
             self.z_dim_input.setValue(config.get('z_dim', 2))
             self.speed_input.setValue(int(config.get('speed', 100)))
             self.time_step_input.setValue(float(config.get('time_step', 0.1)))
-            # Load new fields with default values if not present
             self.time_horizon_input.setValue(float(config.get('time_horizon', 5.0)))
             self.num_sims_input.setValue(int(config.get('num_sims', 0)))
             self.node_batching_checkbox.setChecked(bool(config.get('node_batch', False)))
             self.save_to_file_checkbox.setChecked(bool(config.get('save', False)))
             self.log_file_input.setText(config.get('log_file', 'boxes.txt'))
-
+            self.noise_checkbox.setChecked(bool(config.get('noise', False)))
 
     def save_config(self):
-            """Save the current configuration to a JSON file"""
-            config = {
-                'x_dim': self.x_dim_input.value(),
-                'y_dim': self.y_dim_input.value(),
-                'z_dim': self.z_dim_input.value(),
-                'speed': self.speed_input.value(),
-                "time_step": self.time_step_input.value(),
-                'time_horizon': self.time_horizon_input.value(),
-                'num_sims': self.num_sims_input.value(),
-                'node_batch': self.node_batching_checkbox.isChecked(),
-                'save': self.save_to_file_checkbox.isChecked(),
-                'log_file': self.log_file_input.text()
-            }
-            with open('plotter_config.json', 'w') as f:
-                json.dump(config, f, indent=4)
-           
+        """Save the current configuration to a JSON file"""
+        config = {
+            'x_dim': self.x_dim_input.value(),
+            'y_dim': self.y_dim_input.value(),
+            'z_dim': self.z_dim_input.value(),
+            'speed': self.speed_input.value(),
+            "time_step": self.time_step_input.value(),
+            'time_horizon': self.time_horizon_input.value(),
+            'num_sims': self.num_sims_input.value(),
+            'node_batch': self.node_batching_checkbox.isChecked(),
+            'save': self.save_to_file_checkbox.isChecked(),
+            'log_file': self.log_file_input.text(),
+            'noise': self.noise_checkbox.isChecked()
+        }
+        with open('plotter_config.json', 'w') as f:
+            json.dump(config, f, indent=4)

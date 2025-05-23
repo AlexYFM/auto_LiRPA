@@ -280,7 +280,7 @@ class VerseBridge():
         if(id in self.agents):
             self.agents.pop(id)
 
-    def run_verse(self, ax= None, time_horizon=20, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0, verify=True):
+    def run_verse(self, ax= None, time_horizon=20, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0, verify=True, noise=False):
         scenario = Scenario(ScenarioConfig( parallel=False))
         agent_ids = list(self.agents.keys())
         acas_agent_ids = []
@@ -347,7 +347,6 @@ class VerseBridge():
                     tau_idx_min = {int_id: min(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
                     tau_idx_max = {int_id: max(get_tau_idx(states[own_id][1], states[int_id][0]), get_tau_idx(states[own_id][0], states[int_id][1])) for int_id in agent_ids if int_id != own_id}
                     reachsets = {int_id: get_acas_reach(states[own_id], states[int_id]) for int_id in agent_ids if int_id != own_id}
-                    
                     closest_ids = []
                     closest_id = min(reachsets, key=lambda k:reachsets[k][0][0][0])
                     closest_dist_upper = reachsets[closest_id][0][1][0]

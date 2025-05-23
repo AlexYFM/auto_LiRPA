@@ -464,7 +464,7 @@ class VerseBridge():
         if(id in self.agents):
             self.agents.pop(id)
 
-    def run_verse(self, ax= None, time_horizon=20, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0, verify=True):
+    def run_verse(self, ax= None, time_horizon=20, time_step=50,  x_dim=1, y_dim=2, z_dim=3, num_sims= 0, verify=True, noise=False):
         scenario = Scenario(ScenarioConfig( parallel=False))
         agent_ids = list(self.agents.keys())
         acas_agent_ids = []

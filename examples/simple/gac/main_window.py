@@ -51,7 +51,7 @@ class VerseWorker(QThread):
     finished = pyqtSignal()
     progress = pyqtSignal(int)  # Optional: for progress updates
 
-    def __init__(self, verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify):
+    def __init__(self, verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify, noise):
         super().__init__()
         self.verse_bridge = verse_bridge
         self.x_dim = x_dim
@@ -61,6 +61,7 @@ class VerseWorker(QThread):
         self.time_step = time_step
         self.num_sims = num_sims
         self.verify = verify
+        self.noise = noise
 
     def run(self):
         # Run the computation in the thread
@@ -71,7 +72,8 @@ class VerseWorker(QThread):
             time_horizon=self.time_horizon, 
             time_step=self.time_step, 
             num_sims=self.num_sims, 
-            verify=self.verify
+            verify=self.verify,
+            noise = self.noise
         )
         self.finished.emit()
 class MainWindow(QMainWindow):
@@ -292,6 +294,11 @@ class MainWindow(QMainWindow):
         # Setup buttons 
         self.setup_buttons()
 
+    def update_selected_plane_on_web(self, x, y, size, yaw):
+        """Update the currently selected plane in the web UI"""
+        js = f"updatePlaneAttributes({x}, {y}, {size}, {yaw});"
+        self.web_view.page().runJavaScript(js)
+
     def setup_sliders(self):
         """Setup container for altitude sliders with styling"""
         self.slider_container = QWidget(self.overlay_container)
@@ -309,10 +316,39 @@ class MainWindow(QMainWindow):
         """Update the initial set value for the currently selected agent"""
         if self.active_agent_id and self.active_agent_id in self.agents:
             initial_set = self.initial_set_input.text().strip()
- 
             self.agents[self.active_agent_id]['init_set'] =  initial_set
             # Call the bridge method to update the initial set
             self.update_status(f"Updated initial set for {self.active_agent_id}: {initial_set}")
+
+            if initial_set.startswith('[') and initial_set.endswith(']'):
+                # Safely evaluate the string
+                data = eval(initial_set, {"np": np, "__builtins__": {}})
+                data = np.array(data)
+
+                # Sanity check shape
+                if data.shape != (2, 6):
+                    raise ValueError("Initial set must be a 2x6 array")
+
+                # Get center values
+                x_center = (data[0][0] + data[1][0]) / 2
+                y_center = (data[0][1] + data[1][1]) / 2
+                z_center = (data[0][2] + data[1][2]) / 2
+
+
+                self.active_slider.setValue(int((z_center -290)/(-3)) )
+
+                yaw_center = data[0][3] + data[1][3] / 2
+
+                # Approximate size based on X and Y span
+                size = ((data[1][0] - data[0][0]) + (data[1][1] - data[0][1])) / 2
+
+                # Convert to pixel-space used by web
+                x_px = int(x_center / 6)
+                y_px = 350 - int((y_center) / 6)
+                size_px = int(min(max(size, 10), 50))
+
+                # Update the selected plane in web view
+                self.update_selected_plane_on_web(x_px, y_px, size_px, yaw_center)
 
     def update_agent_type(self, agent_type):
         """Update the agent type for the currently selected agent"""
@@ -440,6 +476,7 @@ class MainWindow(QMainWindow):
     def setup_right_overlay(self):
         """Setup the right side overlay container and its components"""
         self.right_overlay_container = RightOverlay(self.main_widget)
+        self.right_overlay_container.setStyleSheet("background-color: #b7b7b7; border: 2px solid #616161; opacity: 0.8")
 
     def setup_right_tab(self):
         """Setup the side tab for showing/hiding right overlay"""
@@ -765,9 +802,79 @@ class MainWindow(QMainWindow):
         if(self.thread):
             self.thread.join()
             self.thread = None
-        self.plotter.clear()
-        self.update_status("Stopped Verse")
-    def get_max_time_from_data(self, file_path, verify):
+            
+        # Store the current layout items except the plotter
+        layout_items = []
+        for i in range(self.main_layout.count()):
+            item = self.main_layout.itemAt(i)
+            if item and item.widget() != self.plotter.interactor:
+                layout_items.append(item.widget())
+            
+        # Properly clean up the old plotter
+        if hasattr(self, 'plotter'):
+            try:
+                # Remove from layout first
+                self.main_layout.removeWidget(self.plotter.interactor)
+                
+                # Close and cleanup resources
+                self.plotter.close()
+                self.plotter.interactor.close()
+                self.plotter.interactor.deleteLater()
+                self.plotter.deleteLater()
+                
+                # Force Qt to process the deletion
+                QApplication.processEvents()
+                
+                # Small delay to ensure cleanup is complete
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"Error during plotter cleanup: {e}")
+        
+        try:
+            # Create fresh plotter instance
+            self.plotter = pvqt.QtInteractor()
+            self.plotter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            
+            # Clear the layout and add back all components in the correct order
+            while self.main_layout.count():
+                item = self.main_layout.takeAt(0)
+                if item.widget():
+                    item.widget().setParent(None)
+            
+            # Add the plotter first
+            self.main_layout.addWidget(self.plotter.interactor)
+            
+            # Add back all other components
+            for widget in layout_items:
+                self.main_layout.addWidget(widget)
+            
+            # Initialize the new plotter with basic settings
+            self.plotter.show_grid()
+            self.plotter.show()
+            
+            # Force a render
+            self.plotter.render()
+            
+            # Update the verse bridge with the new plotter
+            if hasattr(self, 'verse_bridge'):
+                self.verse_bridge = VerseBridge(self.plotter)
+            
+            # Ensure overlays stay on top
+            if hasattr(self, 'overlay_container'):
+                self.overlay_container.raise_()
+            if hasattr(self, 'right_overlay_container'):
+                self.right_overlay_container.raise_()
+            if hasattr(self, 'side_tab'):
+                self.side_tab.raise_()
+            if hasattr(self, 'right_side_tab'):
+                self.right_side_tab.raise_()
+            
+            self.update_status("Stopped Verse")
+        except Exception as e:
+            print(f"Error during plotter initialization: {e}")
+            self.update_status("Error restarting plotter")
+
+    def get_max_time_from_data(self, file_path):
         """Get the maximum time value from the file (last value of last line)"""
         max_time = 0
         
@@ -776,10 +883,12 @@ class MainWindow(QMainWindow):
                 lines = file.readlines()
                 if lines:
                     # Get the last line
-                    if(verify):
-                        last_line = lines[-1].strip()
-                    else:
-                        last_line = lines[-3].strip()
+                    j = -1
+
+                    last_line = lines[j].strip()
+                    while last_line[-2:] == "-1":
+                        j-=1
+                        last_line = lines[j].strip()
                     if last_line:
                         # Split the line and get the last value
                         parts = last_line.split()
@@ -800,6 +909,10 @@ class MainWindow(QMainWindow):
 
     def handle_inputs(self, verify):
         # Check if file input has content
+
+        if  hasattr(self, 'timeline_slider'):
+
+            self.timeline_slider.hide()
         file_path = self.file_input.text().strip()
         if file_path:
             # If file specified, load boxes
@@ -807,9 +920,8 @@ class MainWindow(QMainWindow):
 
             self.plotter.show_grid(all_edges=True)
 
-
-            max_time = self.get_max_time_from_data(file_path, verify)
-            print(f"Max time from file: {max_time}")
+            max_time = self.get_max_time_from_data(file_path)
+            #print(f"Max time from file: {max_time}")
             
             # Setup the slider with the appropriate range
             if not hasattr(self, 'timeline_slider'):
@@ -828,24 +940,19 @@ class MainWindow(QMainWindow):
 
             verse.plotter.plotter3D.plotted = []
             verse.plotter.plotter3D.not_plotted = []
-            #self.run_plotter_in_thread( file_path)
+            self.run_plotter_in_thread( file_path)
 
+
+
+            #verse.plotter.clear()
             preprocess_file(self.plotter, file_path)
+
 
             self.timeline_slider.show()
             self.timeline_slider.raise_()
             verse.plotter.plotter3D.load_time = float(max_time)
 
-            
-           
-
-
         else:
-            if  hasattr(self, 'timeline_slider'):
-
-                self.timeline_slider.hide()
-
-
             if os.path.exists('plotter_config.json'):
                 with open('plotter_config.json', 'r') as f:
                     config = json.load(f)
@@ -857,6 +964,7 @@ class MainWindow(QMainWindow):
                     num_sims = config['num_sims']
                     save_to_file = config['save']
                     log_file = config['log_file']
+                    noise = config['noise']
             verse.plotter.plotter3D.node_rect_cache ={}
             verse.plotter.plotter3D.node_idx =0
 
@@ -867,6 +975,7 @@ class MainWindow(QMainWindow):
             for id in self.agents:
                 d = self.agents[id]
                 if(d['init_set'] == ''):
+                    print(d)
                     self.verse_bridge.updatePlane( id= id, x =d['x'],y =d['y'], z= 300 - 3*d['altitude']-10, radius= d['size'], pitch=0,yaw=d['yaw'], v=100, agent_type=d["agent_type"], dl = (None if d["dl"] == "None" else d["dl"]) )
                 else:
 
@@ -899,14 +1008,14 @@ class MainWindow(QMainWindow):
                     self.verse_bridge.addInitialSet(id, result)
 
             self.plotter.clear()
-            self.run_in_thread( x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify)
+            self.run_in_thread( x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify, noise)
 
 
-    def run_in_thread(self, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify):
+    def run_in_thread(self, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify, noise):
         
         # Create and set up the worker
         self.verse_worker = VerseWorker(
-            self.verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify
+            self.verse_bridge, x_dim, y_dim, z_dim, time_horizon, time_step, num_sims, verify, noise
         )
         
         # Connect signals
@@ -915,8 +1024,7 @@ class MainWindow(QMainWindow):
         # Start the thread
         self.verse_worker.start()
     def run_plotter_in_thread(self, log_file):
-       
-        
+    
         # Create and set up the worker
         self.plotter_worker = PlotterWorker(
             self.plotter, log_file
