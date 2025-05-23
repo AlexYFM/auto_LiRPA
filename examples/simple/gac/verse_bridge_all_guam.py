@@ -379,6 +379,9 @@ def add_dubins_noise(reachset: np.ndarray, position_noise: float = 2.5) -> np.nd
     ub[0:2] = ub[0:2] + position_noise
     return np.array([lb, ub])
 
+def add_acas_noise(lb: torch.Tensor, ub: torch.Tensor, distance_noise: float = 2.5) -> Tuple:
+    lb[0], ub[0] = lb[0]-distance_noise, ub[0]+distance_noise
+    return lb, ub
 #=====================================================================================
 
 
@@ -407,6 +410,7 @@ class VerseBridge():
         #  -- larger initial set
         # [[-10, -1010, -1, np.pi/2, np.pi/6, 100], [10, -990, 1, np.pi/2, np.pi/6, 100]]
         # [[1199, -1, 649, np.pi,0, 100], [1201, 1, 651, np.pi,0, 100]]
+        
         # [[-2001, 299, 849, 0,0, 100], [-1999, 301, 851, 0,0, 100]]
 
         # [[-10, 990, -1, -np.pi/2, np.pi/6, 100], [10, 1010, 1, -np.pi/2, np.pi/6, 100]] 
@@ -420,8 +424,17 @@ class VerseBridge():
         # [[-2, -2, -2, np.pi, np.pi/12, 100], [-1,-1, -1, np.pi, np.pi/12, 100]]
         # [[-1001, 19, 498, 0,0, 100], [-999, 20, 501, 0,0, 100]]
 
-        # [[-2, -10, -2, np.pi, np.pi/6, 100], [-1,13,-1, np.pi, np.pi/6, 100]]
-        # [[-1001, -13, 499, 0,0, 100], [-999, 10, 500, 0,0, 100]]
+        # [[-2, -1, -2, np.pi, np.pi/12, 100], [-1,1,-1, np.pi, np.pi/12, 100]]
+        # [[-1001, -1, 499, 0,0, 100], [-999, 1, 500, 0,0, 100]]
+        
+        ### Current demo 1
+        # [[-2, -5, -2, np.pi, np.pi/12, 100], [-1,5,-1, np.pi, np.pi/12, 100]]
+        # [[-1001, -5, 249, 0,0, 100], [-999, 5, 250, 0,0, 100]]
+        
+        # [[-2, 5, -2, np.pi, np.pi/12, 100], [-1,15,-1, np.pi, np.pi/12, 100]]
+        # [[-1001, -15, 249, 0,0, 100], [-999, -5, 250, 0,0, 100]]
+        ###
+        ### for small and large noise, just use second set of initial sets from demo 1
 
         # [[-2, -7, -2, np.pi, np.pi/6, 100], [-1,7,-1, np.pi, np.pi/6, 100]]
         # [[-1001, -7, 499, 0,0, 100], [-999, 7, 500, 0,0, 100]]
@@ -516,7 +529,7 @@ class VerseBridge():
 
                 # states = {id: add_dubins_noise(states[id]) for id in states} # adding in noise
 
-                print(states)
+                # print(states)
                 all_modes = {}
                 for own_id in acas_agent_ids:
                     modes = set()
@@ -541,6 +554,9 @@ class VerseBridge():
                             if len(modes)==5: # if all modes are possible, stop iterating
                                 break 
                             acas_min, acas_max = reachset
+
+                            # acas_min, acas_max = add_acas_noise(acas_min, acas_max, 10) # default noise is 2.5
+
                             acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
                             x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
                             x = (x_l+x_u)/2
