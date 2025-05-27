@@ -559,7 +559,8 @@ class VerseBridge():
                                 break 
                             acas_min, acas_max = reachset
 
-                            # acas_min, acas_max = add_acas_noise(acas_min, acas_max, 10) # default noise is 2.5
+                            if noise:
+                                acas_min, acas_max = add_acas_noise(acas_min, acas_max, 2.5) # default noise is 2.5
 
                             acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
                             x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
