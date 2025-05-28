@@ -383,6 +383,11 @@ def add_dubins_noise(reachset: np.ndarray, position_noise: float = 2.5) -> np.nd
 def add_acas_noise(lb: torch.Tensor, ub: torch.Tensor, distance_noise: float = 2.5) -> Tuple:
     lb[0], ub[0] = lb[0]-distance_noise, ub[0]+distance_noise
     return lb, ub
+
+def add_dubins_heading_noise(reachset: np.ndarray, heading_noise: float = 0.01) -> np.array:
+    lb, ub = reachset[0], reachset[1]
+    lb[3], ub[3] = lb[3]-heading_noise, ub[3]+heading_noise
+    return np.array([lb, ub])
 #=====================================================================================
 
 
@@ -531,7 +536,8 @@ class VerseBridge():
                 # print(f'HERE: {guam_states}')
                 states = {id: np.array(guam_to_dubins_3d_set(guam_states[id])) for id in guam_states}
 
-                # states = {id: add_dubins_noise(states[id]) for id in states} # adding in noise
+                if noise:
+                    states = {id: add_dubins_heading_noise(states[id], 0.0005) for id in states} 
 
                 # print(states)
                 all_modes = {}
@@ -559,8 +565,9 @@ class VerseBridge():
                                 break 
                             acas_min, acas_max = reachset
 
-                            if noise:
-                                acas_min, acas_max = add_acas_noise(acas_min, acas_max, 2.5) # default noise is 2.5
+                            # if noise:
+                            #     acas_min, acas_max = add_acas_noise(acas_min, acas_max, 2.5) # default noise is 2.5
+                                # acas_min, acas_max = add_acas_heading_noise(acas_min, acas_max) # default noise is 2.5
 
                             acas_min, acas_max = (acas_min-means_for_scaling)/range_for_scaling, (acas_max-means_for_scaling)/range_for_scaling
                             x_l, x_u = torch.tensor(acas_min).float().view(1,5), torch.tensor(acas_max).float().view(1,5)
