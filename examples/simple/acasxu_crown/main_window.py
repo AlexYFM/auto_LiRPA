@@ -198,6 +198,7 @@ class MainWindow(QMainWindow):
                 background-color: white;
                 border: 1px solid #3498db;
                 border-radius: 4px;
+                color: black; 
                 padding: 2px 4px;
             }
             QLineEdit:focus {
@@ -219,6 +220,7 @@ class MainWindow(QMainWindow):
                 background-color: white;
                 border: 1px solid #3498db;
                 border-radius: 4px;
+                color: black;
                 padding: 2px 4px;
             }
             QComboBox:focus {
@@ -248,6 +250,7 @@ class MainWindow(QMainWindow):
                 background-color: white;
                 border: 1px solid #3498db;
                 border-radius: 4px;
+                color: black;
                 padding: 2px 4px;
             }
             QComboBox:focus {
